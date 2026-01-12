@@ -1,0 +1,8 @@
+figure(1)
+saveas(gcf,"Figure/"+"Solver Time.png")
+figure(2)
+saveas(gcf,"Figure/"+"Total Computation Time.png")
+figure(3)
+saveas(gcf,"Figure/"+"Gini.png")
+figure(4)
+saveas(gcf,"Figure/"+"Average Delay.png")
