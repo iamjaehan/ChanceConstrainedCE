@@ -10,7 +10,7 @@ export ParametricOptimizationProblem, solve, total_dim
 include("parametric_optimization_problem.jl")
 export ParametricGame
 include("../devel/0_GameSetup.jl")
-export SetC
+export SetC, generateAseq
 include("../devel/SearchNash.jl")
 export SearchNash, PrepNash, SolveNash
 include("../devel/NashBasedOptimizer.jl")

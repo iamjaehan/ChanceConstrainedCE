@@ -82,20 +82,25 @@ end
 # C = BlockArray([C11 C12; C21 C22],[2,2],[2,2])
 
 # Define functions
-function generateAseq(i,ai,m,n)
-    primeChoice = "1:$m"
-    stringUnit = ""
-    for j in 1:n
-        if j == i
-            stringUnit = stringUnit*"$ai"*","
-        else
-            stringUnit = stringUnit*primeChoice*","
-        end
-    end
-    stringUnit = chop(stringUnit)
-    stringSum = "vec(collect(Iterators.product("*stringUnit*")))"
-    aSet = eval(Meta.parse(stringSum))
-    return aSet
+# function generateAseq(i,ai,m,n)
+#     primeChoice = "1:$m"
+#     stringUnit = ""
+#     for j in 1:n
+#         if j == i
+#             stringUnit = stringUnit*"$ai"*","
+#         else
+#             stringUnit = stringUnit*primeChoice*","
+#         end
+#     end
+#     stringUnit = chop(stringUnit)
+#     stringSum = "vec(collect(Iterators.product("*stringUnit*")))"
+#     aSet = eval(Meta.parse(stringSum))
+#     return aSet
+# end
+
+function generateAseq(i, ai, m, n)
+    ranges = ntuple(k -> (i != 0 && k == i) ? (ai:ai) : (1:m), n)
+    return collect(Iterators.product(ranges...))  # iterator
 end
 
 function CalcPhi(i,ai,_ai,x,m,n,C)
@@ -104,13 +109,19 @@ function CalcPhi(i,ai,_ai,x,m,n,C)
     l = length(aSeq)
     phi = 0
     for j in 1:l
-        zValue = x[CartesianIndex(aSeq[j])]
-        aSeqV = [k for k in _aSeq[j]]
-        for ii in 1:n
-            aSeqV[ii] = aSeqV[ii] + m*(ii-1)
+        # zValue = x[CartesianIndex(aSeq[j])]
+        # aSeqV = [k for k in _aSeq[j]]
+        # for ii in 1:n
+        #     aSeqV[ii] = aSeqV[ii] + m*(ii-1)
+        # end
+        # cValue = sum(C[m*(i-1)+_ai,aSeqV])
+        # phi += zValue * cValue
+        cost = 0.0
+        a = _aSeq[j]
+        for j in 1:n
+            cost += C[Block(i,j)][_ai, a[j]]
         end
-        cValue = sum(C[m*(i-1)+ai,aSeqV])
-        phi += zValue * cValue
+        phi += x[CartesianIndex(aSeq[j])] * cost
     end
     return phi
 end
@@ -149,16 +160,33 @@ function CalcIndividualJ(x,idx,C,m,n)
     return J
 end
 
-function CalcH(x,m,n,C)
+function CalcMarginalP(i, ai, x_f, m, n)
+    aSeq = generateAseq(i,ai,m,n)
+    l = length(aSeq)
+    p = 0
+    for j in 1:l
+        p += x_f[CartesianIndex(aSeq[j])]
+    end
+    return p
+end
+
+function CalcH(x,m,n,C; zalpha, sigma)
     x_f = reshape(x,ntuple(i->m,n))
-    out = Vector{Any}(undef,m^n+m^2*n)
+    out = Vector{Any}(undef,m^n + m^2*n - n*m)
     out[1:length(x)] = x
     c = length(x)
     for i in 1:n
         for ai in 1:m
+            p_ai = CalcMarginalP(i,ai,x_f,m,n)
+            base = CalcPhi(i,ai,ai,x_f,m,n,C)
             for _ai in 1:m
+                if ai == _ai
+                    continue
+                end
                 c += 1
-                out[c] = CalcPhi(i,ai,ai,x_f,m,n,C) - CalcPhi(i,ai,_ai,x_f,m,n,C)
+                mean_diff = base - CalcPhi(i,ai,_ai,x_f,m,n,C)
+                margin = zalpha * sigma * p_ai
+                out[c] = mean_diff + margin
             end
         end
     end
@@ -231,8 +259,8 @@ function T3Const(xi,l)
     return v .- w
 end
 
-function CorrPacker(x,C,m,n,l,Δ)
-    out = [CalcH(x[1:l], m, n, C);
+function CorrPacker(x,C,m,n,l,Δ; zalpha, sigma)
+    out = [CalcH(x[1:l], m, n, C; zalpha = zalpha, sigma = sigma);
     T1Const(x,C,m,n,l);
     T2Const(x,C,m,n,l,Δ);
     T3Const(x,l)]
@@ -262,7 +290,7 @@ function NashPacker(x,scoreSet,C,m,n,l,Δ)
 end
 
 function EvalFairness(primals,C,m,n,Δ)
-    c = Vector{Any}(undef,n)
+    c = Vector{Float64}(undef,n)
     for i in 1:n
         c[i] = CalcIndividualJ(primals, i, C, m, n)
     end
@@ -270,7 +298,7 @@ function EvalFairness(primals,C,m,n,Δ)
 end
 
 function EvalGini(primals,C,m,n,Δ)
-    c = Vector{Any}(undef,n)
+    c = Vector{Float64}(undef,n)
     for i in 1:n
         c[i] = CalcIndividualJ(primals, i, C, m, n)
     end
@@ -283,14 +311,54 @@ function EvalGini(primals,C,m,n,Δ)
     return us/(2*mean(c)*n^2)
 end
 
-function EvalMaxCostDiff(primals, C, m, n)
-    c = Vector{Any}(undef,n)
-    for i in 1:n
-        c[i] = CalcIndividualJ(primals, i, C, m, n)
-    end
-    return abs(maximum(c)-minimum(c))/Δ
-end
+# function EvalMaxCostDiff(primals, C, m, n)
+#     c = Vector{Any}(undef,n)
+#     for i in 1:n
+#         c[i] = CalcIndividualJ(primals, i, C, m, n)
+#     end
+#     return abs(maximum(c)-minimum(c))/Δ
+# end
 
 function EvalAverageDelay(primals, C, m, n)
     return CalcJ(primals, C, m, n)/n
+end
+
+function J_def(i, a, C)
+    # a is a Vector{Int} of length n
+    n = length(a)
+    s = 0.0
+    for j in 1:n
+        s += C[Block(i,j)][a[i], a[j]]
+    end
+    return s
+end
+
+
+function max_CE_violation_2p(z, C, m)
+    z_f = reshape(z, m, m)
+    maxv = -Inf
+    # player 1 constraints: for each recommended a1 and deviation a1'
+    for a1 in 1:m, a1p in 1:m
+        a1 == a1p && continue
+        s = 0.0
+        for a2 in 1:m
+            # Δ = J(rec) - J(dev)
+            Jrec = J_def(1, [a1, a2], C)
+            Jdev = J_def(1, [a1p, a2], C)
+            s += z_f[a1, a2] * (Jrec - Jdev)
+        end
+        maxv = max(maxv, s)
+    end
+    # player 2 constraints
+    for a2 in 1:m, a2p in 1:m
+        a2 == a2p && continue
+        s = 0.0
+        for a1 in 1:m
+            Jrec = J_def(2, [a1, a2], C)
+            Jdev = J_def(2, [a1, a2p], C)
+            s += z_f[a1, a2] * (Jrec - Jdev)
+        end
+        maxv = max(maxv, s)
+    end
+    return maxv
 end

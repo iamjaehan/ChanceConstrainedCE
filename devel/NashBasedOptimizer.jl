@@ -22,7 +22,7 @@ function SolveSubProblem(nashSet,scoreSet, C, m, n, Δ)
 
     # score = CalcJNashSet(primals[1:d], nashSet, C, m, n)
     primalJoint = nashSet'*primals[1:d]
-    score = CalcJ(primalJoint,C,m,n)
+    score = CalcEFJ(primalJoint,C,m,n)
     varsize = length(primals)
 
     (; primalJoint, primals, score, varsize, solverTime)

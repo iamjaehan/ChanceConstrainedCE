@@ -1,7 +1,7 @@
 using correlated
 using BlockArrays: Block
 
-function SearchCorr(r,n,λ,Δ)
+function SearchCorr(r,n,λ,Δ; zalpha, sigma)
     println("Begin Corr Search for m=$(2^r) and n=$n case.")
     C = SetC(r,n,λ)
 
@@ -11,7 +11,7 @@ function SearchCorr(r,n,λ,Δ)
     # f(x, θ) = CalcJ(x,C,m,n) # Utilitarian cost fcn
     f(x, θ) = CalcEFJ(x,m^n,n,Δ) # EF cost fcn
     g(x, θ) = [sum(x[1:m^n]) - 1]
-    h(x, θ) = CorrPacker(x,C,m,n,m^n,Δ)
+    h(x, θ) = CorrPacker(x,C,m,n,m^n,Δ; zalpha = zalpha, sigma = sigma)
     problem = ParametricOptimizationProblem(;
         objective = f,
         equality_constraint = g,
@@ -19,7 +19,7 @@ function SearchCorr(r,n,λ,Δ)
         parameter_dimension = 1,
         primal_dimension = m^n + n + 1,
         equality_dimension = 1,
-        inequality_dimension = m^n + n*m*m + 3*n,
+        inequality_dimension = m^n + n*m*(m-1) + 3*n,
     )
 
     solverTime = @elapsed (; primals, variables, status, info) = solve(problem, [0])
