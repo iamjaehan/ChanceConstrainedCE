@@ -28,9 +28,10 @@ function SolveBruteSubProblem(nashSet,scoreSet, C, m, n, Δ)
     (; primalJoint, primals, score, varsize, solverTime)
 end
 
-function BruteNashBasedOptimizer(r,n,λ,Δ)
+function BruteNashBasedOptimizer(r,n,λ,Δ; zalpha, sigma)
     (; C, m, n) = PrepNashBrute(r,n,λ)
-    accuSolveTime = @elapsed nashSet = SolveNashBrute(C, m, n)
+    accuSolveTime = @elapsed nashSet = SolveNashBrute(C, m, n; zalpha = zalpha, sigma = sigma)
+    println(nashSet)
     # (; problem, C, m, n) = PrepNash(r,n,λ)
     # out = SolveNash(problem, C, m, n, false)
     # if out.status == PATHSolver.MCP_Solved

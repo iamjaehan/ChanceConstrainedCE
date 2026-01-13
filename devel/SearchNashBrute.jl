@@ -32,7 +32,57 @@ function ExtractNash(aSeq,i,C,m,n)
     return NashIdxList
 end
 
-function SolveNashBrute(C,m,n)
+function ExtractUAPNE(aSeq, i, C, m, n, kappa; tol=1e-12)
+    NashIdxList = Vector{Any}(undef,0)
+
+    for j in 1:length(aSeq)
+        C_local = zeros(m)
+        action = CartesianIndex(aSeq[j])
+
+        # build cost vector over ai
+        for k in 1:n
+            if k != i
+                C_local .+= C[Block(i,k)][:, action[k]]
+            end
+        end
+
+        cur = action[i]
+        br  = argmin(C_local)
+
+        # if action[i]==0 means "wildcard" in your pipeline
+        if cur == 0
+            # for wildcard, pick a BR, but ALSO require margin for that BR
+            cur = br
+        end
+
+        # 1) must be (one of) best responses
+        if C_local[cur] > C_local[br] + tol
+            continue
+        end
+
+        # 2) margin condition: best deviation excluding cur
+        second_best = Inf
+        for a in 1:m
+            a == cur && continue
+            second_best = min(second_best, C_local[a])
+        end
+
+        if second_best < C_local[cur] + kappa - tol
+            continue
+        end
+
+        # keep candidate
+        action_v = collect(Iterators.flatten(aSeq[j]))
+        action_v[i] = cur
+        localNash = Tuple(Int64(x) for x in action_v)
+        NashIdxList = vcat(NashIdxList,[localNash])
+    end
+
+    return NashIdxList
+end
+
+
+function SolveNashBrute(C,m,n; zalpha, sigma)
     NashIdxList = Vector{Any}(undef,0)
     NashList = Vector{Any}(undef,0)
     for i in 1:n # Filter BR for i
@@ -41,7 +91,9 @@ function SolveNashBrute(C,m,n)
         else
             aSeq = NashIdxList
         end
-        NashIdxList = ExtractNash(aSeq, i, C, m, n)
+        # NashIdxList = ExtractNash(aSeq, i, C, m, n)
+        kappa = zalpha * sigma
+        NashIdxList = ExtractUAPNE(aSeq, i, C, m, n, kappa)
     end
     
     for i in 1:size(NashIdxList)[1]
