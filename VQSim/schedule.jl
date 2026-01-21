@@ -17,9 +17,9 @@ function load_schedule(csv_path::AbstractString)::Vector{Flight}
     df = CSV.read(csv_path, DataFrame)
 
     # ready_t optional
-    if !haskey(df, :ready_t)
+    if !(:ready_t in names(df))
         df.ready_t = df.sched_t
-    end
+    end    
 
     flights = Vector{Flight}(undef, nrow(df))
     for (k, row) in enumerate(eachrow(df))

@@ -20,5 +20,11 @@ export SearchCorr
 include("../devel/SearchNashBrute.jl")
 include("../devel/BruteNashBasedOptimizer.jl")
 export BruteNashBasedOptimizer
+include("../VQSim/VQ_SearchCorrTensor.jl")
+export SearchCorrTensor
+include("../VQSim/actions.jl")
+include("../VQSim/costs.jl")
+include("../VQSim/schedule.jl")
+include("../VQSim/state.jl")
 
 end # module correlated
