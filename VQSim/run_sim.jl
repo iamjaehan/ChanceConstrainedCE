@@ -12,8 +12,8 @@ using .VQCosts
 
 # === CONFIG ===
 csv_path = "schedule/flight_schedule_1h.csv"
-params = SimParams(2, [1, 2])       # 2 runways, 1 departure per epoch (mu)
-T_sim = 16                           # Number of epochs
+params = SimParams(2, [2, 2])       # 2 runways, 1 departure per epoch (mu)
+T_sim = 16                           # Number of epochs (16 for 64 minutes)
 
 lambda_fair = 1.0
 rho_release = 0.1
@@ -52,33 +52,43 @@ for step in 1:T_sim
     joint_pushed, joint_choice = enumerate_joint_actions(actions_by_player)
     println("Joint actions: ", length(joint_pushed))
 
-    # Greedy selection by coordinator cost (temporary stand-in for CE selection)
-    best_k = 1
-    best_cost = Inf
-    best_info = nothing
-    for k in eachindex(joint_pushed)
-        pushed = joint_pushed[k]
-        info = VQCosts.compute_costs(
-            state.Q, pushed, flights, active_airlines, active_by_airline, state.t;
-            n_runways=params.n_runways,
-            beta_queue=lambda_fair,
-            rho_release=rho_release
-        )
-        if info.J_coord < best_cost
-            best_cost = info.J_coord
-            best_k = k
-            best_info = info
-        end
-    end
+    """ Greedy selection by coordinator cost (Greedy centralized enforcement) """
+    # best_k = 1
+    # best_cost = Inf
+    # best_info = nothing
+    # for k in eachindex(joint_pushed)
+    #     pushed = joint_pushed[k]
+    #     info = VQCosts.compute_costs(
+    #         state.Q, pushed, flights, active_airlines, active_by_airline, state.t;
+    #         n_runways=params.n_runways,
+    #         beta_queue=lambda_fair,
+    #         rho_release=rho_release
+    #     )
+    #     if info.J_coord < best_cost
+    #         best_cost = info.J_coord
+    #         best_k = k
+    #         best_info = info
+    #     end
+    # end
+    # pushed_best = joint_pushed[best_k]
+    # VQCosts.evolve_state!(state, pushed_best, flights; mu=params.mu)
 
-    pushed_best = joint_pushed[best_k]
-    # println("Chosen (greedy) release count = ", length(pushed_best),
-    #         ", J_coord=", best_cost,
-    #         ", fairness=", best_info.fairness)
-    # println("tildeQ = ", best_info.tildeQ)
+    """ CE-baseed solver """
+    # 1) build tensors for this epoch
+    game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
+    actions_by_player, joint_pushed, joint_choice; n_runways = 2)
 
-    # apply realized action and evolve state (with departures)
-    VQCosts.evolve_state!(state, pushed_best, flights; mu=params.mu)
+    # 2) solve CE (standard CE + epigraph)
+    res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=0.0)
+    z = res.z   # length K
+
+    # 3) sample recommendation
+    k_rec = sample_k(z)
+    pushed_rec = game.joint_pushed[k_rec]
+
+    # 4) evolve
+    VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
+
 end
 
 println("\nDone. Final Q = ", state.Q, ", t=", state.t)

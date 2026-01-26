@@ -27,4 +27,8 @@ include("../VQSim/costs.jl")
 include("../VQSim/schedule.jl")
 include("../VQSim/state.jl")
 
+include("../VQSim/VQ_SearchCorrTensor.jl")
+export build_epoch_game_tensors, CalcH_Tensor, SearchCorrTensor, sample_k, realized_choice_conditional_BR
+
+
 end # module correlated
