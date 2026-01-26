@@ -19,8 +19,8 @@ end
 function queue_delay(Q; Q0=2)
     # return max(0, Q - Q0)
     # return exp(Q*0.231)-1
-    # return Q/3
-    return Q^2/36
+    return Q/3
+    # return Q^2/36
 end
 
 """

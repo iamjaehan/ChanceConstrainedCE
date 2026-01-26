@@ -22,7 +22,7 @@ max_subset_size = 1024
 # === LOAD .csv ===
 flights = VQSchedule.load_schedule(csv_path)
 state = init_state(params, length(flights))
-sigma_i = ones(3,1) * 10
+sigma_i = fill(10.0, length(flights))
 
 println("Loaded flights: ", length(flights))
 
@@ -74,20 +74,56 @@ for step in 1:T_sim
     # pushed_best = joint_pushed[best_k]
     # VQCosts.evolve_state!(state, pushed_best, flights; mu=params.mu)
 
-    """ CE-baseed solver """
-    # 1) build tensors for this epoch
+    """ CE-based solver """
+    # # 1) build tensors for this epoch
+    # game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
+    # actions_by_player, joint_pushed, joint_choice; n_runways = 2)
+
+    # # 2) solve CE (standard CE + epigraph)
+    # res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=0.0)
+    # z = res.z   # length K
+
+    # # 3) sample recommendation
+    # k_rec = sample_k(z)
+    # pushed_rec = game.joint_pushed[k_rec]
+
+    # # 4) Actual choice
+    # C_air_noisy = copy(game.C_air)
+    # for i in 1:size(C_air_noisy,1)
+    #     C_air_noisy[i, :] .+= sigma_i[i] .* randn(size(C_air_noisy,2))
+    # end
+
+    # k_real = realized_choice_conditional_BR(
+    #     C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
+    # )
+    # pushed_real = game.joint_pushed[k_real]
+
+    # # 5) evolve
+    # VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
+    # # VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
+
+    """ Brute - RRCE solver"""
+    # build tensors for this epoch
     game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
     actions_by_player, joint_pushed, joint_choice; n_runways = 2)
 
-    # 2) solve CE (standard CE + epigraph)
-    res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=0.0)
-    z = res.z   # length K
+    # Find PNE set
+    pne_ks = find_pne_set(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=0.0)
+    println(length(pne_ks))
 
-    # 3) sample recommendation
-    k_rec = sample_k(z)
-    pushed_rec = game.joint_pushed[k_rec]
+    if isempty(pne_ks)
+        println("No PNE found this epoch")
+    else
+        # RRCE-like mixing
+        rr = solve_rrce_over_pne(game.C_air, pne_ks; max_iters=3000, step0=1.0, tol=1e-6)
+        z_use = pne_to_distribution(rr.pne_ks, rr.λ, length(game.joint_pushed))
 
-    # 4) Actual choice
+        k_rec = sample_k(z_use)
+    end
+
+    k_rec = sample_k(z_use)
+
+    # 노이즈 일탈(기존 그대로)
     C_air_noisy = copy(game.C_air)
     for i in 1:size(C_air_noisy,1)
         C_air_noisy[i, :] .+= sigma_i[i] .* randn(size(C_air_noisy,2))
@@ -98,9 +134,7 @@ for step in 1:T_sim
     )
     pushed_real = game.joint_pushed[k_real]
 
-    # 4) evolve
-    VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
-    # VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
+    VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
 
 end
 

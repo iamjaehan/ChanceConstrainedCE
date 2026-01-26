@@ -29,6 +29,8 @@ include("../VQSim/state.jl")
 
 include("../VQSim/VQ_SearchCorrTensor.jl")
 export build_epoch_game_tensors, CalcH_Tensor, SearchCorrTensor, sample_k, realized_choice_conditional_BR
+include("../VQSim/VQ_BruteRRCETensor.jl")
+export find_pne_set, solve_rrce_over_pne, pne_to_distribution
 
 
 end # module correlated
