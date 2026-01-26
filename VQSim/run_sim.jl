@@ -12,7 +12,7 @@ using .VQCosts
 
 # === CONFIG ===
 csv_path = "schedule/flight_schedule_1h.csv"
-params = SimParams(2, [2, 2])       # 2 runways, 1 departure per epoch (mu)
+params = SimParams(2, [1, 2])       # 2 runways, 1 departure per epoch (mu)
 T_sim = 16                           # Number of epochs (16 for 64 minutes)
 
 lambda_fair = 1.0
@@ -22,6 +22,7 @@ max_subset_size = 1024
 # === LOAD .csv ===
 flights = VQSchedule.load_schedule(csv_path)
 state = init_state(params, length(flights))
+sigma_i = ones(3,1) * 10
 
 println("Loaded flights: ", length(flights))
 
@@ -86,8 +87,20 @@ for step in 1:T_sim
     k_rec = sample_k(z)
     pushed_rec = game.joint_pushed[k_rec]
 
+    # 4) Actual choice
+    C_air_noisy = copy(game.C_air)
+    for i in 1:size(C_air_noisy,1)
+        C_air_noisy[i, :] .+= sigma_i[i] .* randn(size(C_air_noisy,2))
+    end
+
+    k_real = realized_choice_conditional_BR(
+        C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
+    )
+    pushed_real = game.joint_pushed[k_real]
+
     # 4) evolve
     VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
+    # VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
 
 end
 
