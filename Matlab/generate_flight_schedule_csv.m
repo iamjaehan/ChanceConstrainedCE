@@ -5,7 +5,7 @@ function generate_flight_schedule_csv( ...
     n_airlines, ...
     n_runways, ...
     avg_dep_rate, ...     % average departures per minute
-    pax_mean, pax_std ... % passenger distribution
+    pax_class_ratio ... % passenger distribution
 )
 % ---------------------------------------------------------
 % Generate synthetic flight departure schedule and export CSV
@@ -31,7 +31,9 @@ for t = 0:(T-1)
         runway = randi(n_runways);
 
         % passenger count (truncate at >=10)
-        pax = max(10, round(normrnd(pax_mean(airline_id), pax_std)));
+        pax_class = [300 250 180];
+        % pax = max(10, round(normrnd(pax_mean(airline_id), pax_std)));
+        pax = randsample(pax_class, 1, true, pax_class_ratio);
 
         % ready time: allow small randomness (can be = sched_t)
         ready_offset = randi([0, 3]);  % up to 3 min earlier

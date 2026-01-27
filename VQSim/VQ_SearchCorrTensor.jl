@@ -30,7 +30,8 @@ function build_epoch_game_tensors(
   active_by_airline::Dict{Int,Vector{Int}},
   actions_by_player::Vector{Vector{Vector{Int}}},
   joint_pushed::Vector{Vector{Int}},
-  joint_choice::Vector{Vector{Int}};
+  joint_choice::Vector{Vector{Int}},
+  params;
   n_runways::Int,
   beta_queue::Float64 = 1.0,
   rho_release::Float64 = 0.0
@@ -76,7 +77,7 @@ function build_epoch_game_tensors(
 
       out = VQCosts.compute_costs(
           state.Q, pushed, flights,
-          active_airlines, active_by_airline, state.t;
+          active_airlines, active_by_airline, state.t, params;
           n_runways = n_runways,
           beta_queue = beta_queue,
           rho_release = rho_release
