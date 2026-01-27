@@ -1,27 +1,45 @@
 using LinearAlgebra
 using Statistics
 
-# --- (기존) PNE 찾는 부분은 그대로 두고 is_pne / find_pne_set는 재사용 ---
-
 function is_pne(
     k::Int,
     C_air::AbstractMatrix,
     joint_choice::Vector{Vector{Int}},
     choice_to_k::Dict{Tuple{Vararg{Int}},Int},
     action_sizes::Vector{Int};
-    tol::Float64 = 0.0
+    tol::Float64 = 0.0,
+    zalpha::Real = 0.0,
+    sigma = 0.0
 )
     nP, K = size(C_air)
     base = joint_choice[k]
+
+    use_uapne = (zalpha != 0.0) && (sigma != 0.0)
+    sigma_i(i) = (sigma isa Number) ? sigma : sigma[i]
+    kappa_i(i) = zalpha * sigma_i(i)
+
     for i in 1:nP
         c_base = C_air[i, k]
+
+        # UA-PNE: if any deviation is within kappa of base (or better), fail.
+        # Standard PNE: if any deviation is strictly better (by tol), fail.
+        κ = use_uapne ? kappa_i(i) : 0.0
+
         for ai in 1:action_sizes[i]
             ai == base[i] && continue
+
             tmp = collect(Tuple(base))
             tmp[i] = ai
             k_dev = choice_to_k[Tuple(tmp)]
             c_dev = C_air[i, k_dev]
+
+            # Standard PNE violation (better deviation exists)
             if c_dev + tol < c_base
+                return false
+            end
+
+            # UA-PNE violation (gap not at least κ)
+            if use_uapne && (c_dev < c_base + κ - tol)
                 return false
             end
         end
@@ -34,12 +52,14 @@ function find_pne_set(
     joint_choice::Vector{Vector{Int}},
     choice_to_k::Dict{Tuple{Vararg{Int}},Int},
     action_sizes::Vector{Int};
-    tol::Float64 = 0.0
+    tol::Float64 = 0.0,
+    zalpha::Real = 0.0,
+    sigma = 0.0
 )
     _, K = size(C_air)
     pne_ks = Int[]
     for k in 1:K
-        is_pne(k, C_air, joint_choice, choice_to_k, action_sizes; tol=tol) && push!(pne_ks, k)
+        is_pne(k, C_air, joint_choice, choice_to_k, action_sizes; tol=tol, zalpha = zalpha, sigma = sigma) && push!(pne_ks, k)
     end
     return pne_ks
 end

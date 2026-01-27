@@ -21,7 +21,7 @@ lambda_fair = 1.0
 rho_release = 0.1
 max_subset_size = 1024
 
-# sigma = fill(1000.0, length(flights))
+# sigma = fill(500.0, length(flights))
 sigma = fill(0.0, length(flights)) # Airline action uncertainty
 α = 0.9 # Credibility parameter (α = 0.9 → 90% certainty)
 zalpha = quantile(Normal(), α)
@@ -82,61 +82,19 @@ for step in 1:T_sim
     # VQCosts.evolve_state!(state, pushed_best, flights; mu=params.mu)
 
     """ CE-based solver """
-    # 1) build tensors for this epoch
-    game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
-    actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
-
-    # 2) solve CE (standard CE + epigraph)
-    res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=0.0, zalpha = zalpha, sigma = sigma)
-    z = res.z   # length K
-
-    # 3) sample recommendation
-    k_rec = sample_k(z)
-    pushed_rec = game.joint_pushed[k_rec]
-
-    # 4) Actual choice
-    C_air_noisy = copy(game.C_air)
-    for i in 1:size(C_air_noisy,1)
-        C_air_noisy[i, :] .+= sigma[i] .* randn(size(C_air_noisy,2))
-    end
-
-    k_real = realized_choice_conditional_BR(
-        C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
-    )
-    pushed_real = game.joint_pushed[k_real]
-    println(length(pushed_real),"/",sum(length, values(active_by_airline))," aircraft pushed.")
-
-    # 5) evolve
-    VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
-    # VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
-
-    """ Brute - RRCE solver"""
-    # #build tensors for this epoch
+    # # 1) build tensors for this epoch
     # game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
     # actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
 
-    # # Find PNE set
-    # pne_ks = find_pne_set(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=1e-3)
-    # println("How many pnes?:",length(pne_ks))   
-    # # println("Chosen: ",game.joint_pushed[pne_ks[1]])
-    
-    # # out = max_regret_per_k(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=0.0)
-    # # summarize_regrets(out; tol=1e-7, top=10)
+    # # 2) solve CE (standard CE + epigraph)
+    # res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=0.0, zalpha = zalpha, sigma = sigma)
+    # z = res.z   # length K
 
-    # if isempty(pne_ks)
-    #     println("No PNE found this epoch")
-    # else
-    #     # RRCE-like mixing
-    #     rr = solve_rrce_over_pne(game.C_air, pne_ks; max_iters=3000, step0=1.0, tol=1e-6)
-    #     z_use = pne_to_distribution(rr.pne_ks, rr.λ, length(game.joint_pushed))
-
-    #     k_rec = sample_k(z_use)
-    # end
-
-    # k_rec = sample_k(z_use)
+    # # 3) sample recommendation
+    # k_rec = sample_k(z)
     # pushed_rec = game.joint_pushed[k_rec]
 
-    # # 노이즈 일탈(기존 그대로)
+    # # 4) Actual choice
     # C_air_noisy = copy(game.C_air)
     # for i in 1:size(C_air_noisy,1)
     #     C_air_noisy[i, :] .+= sigma[i] .* randn(size(C_air_noisy,2))
@@ -146,12 +104,54 @@ for step in 1:T_sim
     #     C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
     # )
     # pushed_real = game.joint_pushed[k_real]
-    # # println(active_by_airline)
-    # # println(pushed_real)
     # println(length(pushed_real),"/",sum(length, values(active_by_airline))," aircraft pushed.")
 
-    # VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
-    # # VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
+    # # 5) evolve
+    # VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
+    # # VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
+
+    """ Brute - RRCE solver"""
+    #build tensors for this epoch
+    game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
+    actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
+
+    # Find PNE set
+    pne_ks = find_pne_set(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=1e-3, zalpha = zalpha, sigma = sigma)
+    println("How many pnes?:",length(pne_ks))   
+    # println("Chosen: ",game.joint_pushed[pne_ks[1]])
+    
+    # out = max_regret_per_k(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=0.0)
+    # summarize_regrets(out; tol=1e-7, top=10)
+
+    if isempty(pne_ks)
+        println("No PNE found this epoch")
+    else
+        # RRCE-like mixing
+        rr = solve_rrce_over_pne(game.C_air, pne_ks; max_iters=3000, step0=1.0, tol=1e-6)
+        z_use = pne_to_distribution(rr.pne_ks, rr.λ, length(game.joint_pushed))
+
+        k_rec = sample_k(z_use)
+    end
+
+    k_rec = sample_k(z_use)
+    pushed_rec = game.joint_pushed[k_rec]
+
+    # 노이즈 일탈(기존 그대로)
+    C_air_noisy = copy(game.C_air)
+    for i in 1:size(C_air_noisy,1)
+        C_air_noisy[i, :] .+= sigma[i] .* randn(size(C_air_noisy,2))
+    end
+
+    k_real = realized_choice_conditional_BR(
+        C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
+    )
+    pushed_real = game.joint_pushed[k_real]
+    # println(active_by_airline)
+    # println(pushed_real)
+    println(length(pushed_real),"/",sum(length, values(active_by_airline))," aircraft pushed.")
+
+    VQCosts.evolve_state!(state, pushed_real, flights; mu=params.mu)
+    # VQCosts.evolve_state!(state, pushed_rec, flights; mu=params.mu)
 
 end
 
