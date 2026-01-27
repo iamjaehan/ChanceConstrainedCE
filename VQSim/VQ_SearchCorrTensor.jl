@@ -140,70 +140,84 @@ Return h as Vector{T} where T = promote_type(eltype(z), eltype(C_air)).
 No Float64 casting.
 """
 function CalcH_Tensor(
-    z::AbstractVector,
-    C_air::AbstractMatrix,
-    joint_choice::Vector{Vector{Int}},
-    choice_to_k::Dict{Tuple{Vararg{Int}},Int},
-    action_sizes::Vector{Int}
+  z::AbstractVector,
+  C_air::AbstractMatrix,
+  joint_choice::Vector{Vector{Int}},
+  choice_to_k::Dict{Tuple{Vararg{Int}},Int},
+  action_sizes::Vector{Int};
+  zalpha::Real = 0.0,
+  sigma = 0.0,
 )
-    nP, K = size(C_air)
-    @assert length(z) == K
-    @assert length(joint_choice) == K
-    @assert length(action_sizes) == nP
+  nP, K = size(C_air)
+  @assert length(z) == K
+  @assert length(joint_choice) == K
+  @assert length(action_sizes) == nP
 
-    # Precompute ks by (i,a)
-    ks_by_i_a = [ [Int[] for _ in 1:action_sizes[i]] for i in 1:nP ]
-    for k in 1:K
-        jc = joint_choice[k]
-        @assert length(jc) == nP
-        for i in 1:nP
-            push!(ks_by_i_a[i][jc[i]], k)
-        end
-    end
+  # sigma 처리: scalar면 모든 플레이어 동일, vector면 플레이어별
+  sigma_i(i) = (sigma isa Number) ? sigma : sigma[i]
 
-    # #constraints
-    nCE = 0
-    for i in 1:nP
-        Ai = action_sizes[i]
-        nCE += Ai*(Ai-1)
-    end
+  # Precompute ks by (i,a)
+  ks_by_i_a = [ [Int[] for _ in 1:action_sizes[i]] for i in 1:nP ]
+  for k in 1:K
+      jc = joint_choice[k]
+      @assert length(jc) == nP
+      for i in 1:nP
+          push!(ks_by_i_a[i][jc[i]], k)
+      end
+  end
 
-    # IMPORTANT: allocate with correct element type
-    T = promote_type(eltype(z), eltype(C_air))
-    h = Vector{T}(undef, nCE)
+  # #constraints
+  nCE = 0
+  for i in 1:nP
+      Ai = action_sizes[i]
+      nCE += Ai*(Ai-1)
+  end
 
-    idx = 1
-    for i in 1:nP
-        Ai = action_sizes[i]
-        for a in 1:Ai
-            ks = ks_by_i_a[i][a]
-            for ap in 1:Ai
-                ap == a && continue
+  T = promote_type(eltype(z), eltype(C_air), Float64)
+  h = Vector{T}(undef, nCE)
 
-                if isempty(ks)
-                    h[idx] = zero(T)
-                    idx += 1
-                    continue
-                end
+  idx = 1
+  for i in 1:nP
+      Ai = action_sizes[i]
+      for a in 1:Ai
+          ks = ks_by_i_a[i][a]
 
-                acc = zero(T)
-                for k in ks
-                    c_follow = C_air[i, k]
+          # p_ai = sum_{k in ks} z[k]
+          p_ai = zero(T)
+          for k in ks
+              p_ai += z[k]
+          end
+          margin = T(zalpha) * T(sigma_i(i)) * p_ai
 
-                    tmp = collect(Tuple(joint_choice[k]))
-                    tmp[i] = ap
-                    k_dev = choice_to_k[Tuple(tmp)]
-                    c_dev = C_air[i, k_dev]
+          for ap in 1:Ai
+              ap == a && continue
 
-                    acc += z[k] * (c_dev - c_follow)
-                end
-                h[idx] = acc
-                idx += 1
-            end
-        end
-    end
+              if isempty(ks)
+                  h[idx] = zero(T)
+                  idx += 1
+                  continue
+              end
 
-    return h
+              acc = zero(T)
+              for k in ks
+                  c_follow = C_air[i, k]
+
+                  tmp = collect(Tuple(joint_choice[k]))
+                  tmp[i] = ap
+                  k_dev = choice_to_k[Tuple(tmp)]
+                  c_dev = C_air[i, k_dev]
+
+                  acc += z[k] * (c_dev - c_follow)
+              end
+
+              # uncertainty-aware CE constraint
+              h[idx] = acc - margin
+              idx += 1
+          end
+      end
+  end
+
+  return h
 end
 
 """
@@ -266,22 +280,25 @@ Stack order:
 4) z >= 0
 """
 function CorrPackerTensor(
-    xi,
-    C_air,
-    joint_choice,
-    choice_to_k,
-    action_sizes;
-    Δ = 0.0
+  xi,
+  C_air,
+  joint_choice,
+  choice_to_k,
+  action_sizes;
+  Δ = 0.0,
+  zalpha::Real = 0.0,
+  sigma = 0.0
 )
-    nP, K = size(C_air)
-    z = xi[1:K]
+  nP, K = size(C_air)
+  z = xi[1:K]
 
-    h_ce = CalcH_Tensor(z, C_air, joint_choice, choice_to_k, action_sizes)
-    h_t2 = T2ConstTensor(xi, C_air, K, nP, Δ)
-    h_t3 = T3ConstTensor(xi, K, nP)
-    h_z  = ZNonnegConst(xi, K)
+  h_ce = CalcH_Tensor(z, C_air, joint_choice, choice_to_k, action_sizes;
+                      zalpha = zalpha, sigma = sigma)
+  h_t2 = T2ConstTensor(xi, C_air, K, nP, Δ)
+  h_t3 = T3ConstTensor(xi, K, nP)
+  h_z  = ZNonnegConst(xi, K)
 
-    return vcat(h_ce, h_t2, h_t3, h_z)
+  return vcat(h_ce, h_t2, h_t3, h_z)
 end
 
 """
@@ -306,6 +323,8 @@ function SearchCorrTensor(
     choice_to_k,
     action_sizes;
     Δ = 0.0,
+    zalpha::Real = 0.0,
+    sigma = 0.0,
     z_init = nothing,
     v_init = nothing,
     w_init = nothing
@@ -327,7 +346,7 @@ function SearchCorrTensor(
     # --- objective/equality/inequality in ParametricOptimizationProblem style ---
     f(x, θ) = CalcEFJTensor(x, K, nP, Δ)
     g(x, θ) = [sum(x[1:K]) - 1.0]  # simplex equality
-    h(x, θ) = CorrPackerTensor(x, C_air, joint_choice, choice_to_k, action_sizes; Δ = Δ)
+    h(x, θ) = CorrPackerTensor(x, C_air, joint_choice, choice_to_k, action_sizes; Δ = Δ, zalpha = zalpha, sigma = sigma)
 
     problem = ParametricOptimizationProblem(;
         objective = f,
