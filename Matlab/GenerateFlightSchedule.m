@@ -7,7 +7,7 @@ delta_t = 1;
 n_airlines = 5;
 n_runways = 2;
 
-avg_dep_rate = 1;  % 평균 분당 0.6편 → 약 36편/시간
+avg_dep_rate = 1;  % per minute 
 
 % pax_mean = [150, 120, 90, 110, 100];  % airline별 평균 pax
 % pax_std  = 20;

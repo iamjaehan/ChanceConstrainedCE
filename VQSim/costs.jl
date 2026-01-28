@@ -22,13 +22,9 @@ end
 
 function queue_delay(Q, params, r; Q0=4)
     return max(0, Q - Q0)
-    # return exp(Q*0.231)-1
-    # return Q/3
-    # return max(0, Q - Q0)^2 /36
-    # return Q^2 / 4
     mu = params.mu[r]
-    # return max(0, Q-Q0)/mu*4.0
-    return max(0, Q)/mu*4.0
+    epsilon = 1e-3
+    return max(0, Q)/(mu+epsilon)*4.0
 end
 
 """

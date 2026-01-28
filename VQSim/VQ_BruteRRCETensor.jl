@@ -65,63 +65,88 @@ function find_pne_set(
 end
 
 """
-Solve:  min_{λ∈Δ}  max_i (C_pne * λ)_i
+Objective identical to CalcEFJ:  1'v - n*Δ
+Decision vector layout: xi = [λ(1:d); v(1:n); w]
+"""
+function CalcEFJ_PNE(xi, d::Int, n::Int, Δ::Real)
+    v = xi[d+1 : d+n]
+    return sum(v) - n*Δ
+end
 
-C_pne: (nP x P) where P = #PNEs
-Returns λ (length P) that typically mixes across PNEs.
+"""
+PNE epigraph constraints (same pattern as old T1/T2/T3 + simplex nonnegativity).
+
+Let c = C_pne * λ  (expected costs per player under mixture over PNEs)
+
+Return inequalities intended as >= 0 (same sign convention as your older packers).
+- simplex nonneg: λ >= 0
+- T1: w - c >= 0
+- T2: v - c - Δ >= 0
+- T3: v - w >= 0
+"""
+function PNEPacker(xi, C_pne::AbstractMatrix, d::Int, n::Int, Δ::Real)
+    λ = xi[1:d]
+    v = xi[d+1 : d+n]
+    w = xi[d+n+1]
+
+    c = C_pne * λ  # length n
+
+    return [
+        λ;                # λ >= 0
+        (w .- c);         # w >= c
+        (v .- c .- Δ);    # v >= c + Δ
+        (v .- w)          # v >= w
+    ]
+end
+
+"""
+Solve the same subproblem structure as old SolveBruteSubProblem, but restricted to PNE columns.
+
+Inputs:
+- C_air: (n x K) cost tensor flattened over joint actions
+- pne_ks: indices of PNE joint actions (length d)
+Returns:
+- λ, z_use (length K; mass only on pne_ks), and primals for debugging.
 """
 function solve_rrce_over_pne(
     C_air::AbstractMatrix,
-    pne_ks::Vector{Int};
-    max_iters::Int = 2000,
-    step0::Float64 = 1.0,
-    tol::Float64 = 1e-6
+    pne_ks::Vector{Int},
+    K_total::Int;
+    Δ::Real = 0.0
 )
-    nP, _ = size(C_air)
-    P = length(pne_ks)
-    @assert P > 0 "No PNE found; cannot solve RRCE over PNE hull."
+    n, _ = size(C_air)
+    d = length(pne_ks)
+    @assert d > 0 "No PNE found; cannot solve RRCE subproblem."
 
-    C_pne = C_air[:, pne_ks]  # nP x P
+    C_pne = C_air[:, pne_ks]  # (n x d)
 
-    # Initialize λ uniformly on simplex
-    λ = fill(1.0 / P, P)
+    f(x, θ) = CalcEFJ_PNE(x, d, n, Δ)
+    g(x, θ) = [sum(x[1:d]) - 1.0]  # simplex sum-to-1
+    h(x, θ) = PNEPacker(x, C_pne, d, n, Δ)
 
-    # helper: projection onto simplex
-    function proj_simplex(v::Vector{Float64})
-        # Euclidean projection onto {x>=0, sum x = 1}
-        u = sort(v, rev=true)
-        cssv = cumsum(u)
-        ρ = findlast(j -> u[j] + (1 - cssv[j]) / j > 0, 1:length(u))
-        θ = (1 - cssv[ρ]) / ρ
-        w = max.(v .+ θ, 0.0)
-        s = sum(w)
-        return s > 0 ? (w ./ s) : fill(1.0 / length(v), length(v))
+    problem = ParametricOptimizationProblem(;
+        objective = f,
+        equality_constraint = g,
+        inequality_constraint = h,
+        parameter_dimension = 1,
+        primal_dimension = d + n + 1,
+        equality_dimension = 1,
+        inequality_dimension = d + 3n,
+    )
+
+    solverTime = @elapsed (; primals, variables, status, info) = solve(problem, [0])
+
+    λ = primals[1:d]
+
+    # build distribution over all K joint actions (mass only on pne_ks)
+    z = zeros(Float64, K_total)
+    for (j, k) in enumerate(pne_ks)
+        z[k] = λ[j]
     end
+    s = sum(z)
+    z_use = s > 0 ? z ./ s : z
 
-    # Track objective
-    prev = Inf
-    for it in 1:max_iters
-        y = C_pne * λ                 # expected costs per player (nP)
-        i_star = argmax(y)            # active constraint / worst-off player
-        obj = y[i_star]
-
-        # stopping
-        if abs(prev - obj) < tol
-            break
-        end
-        prev = obj
-
-        # subgradient of max_i y_i at λ is C_pne[i_star, :]'
-        g = vec(C_pne[i_star, :])
-
-        # diminishing step (safe)
-        α = step0 / sqrt(it)
-
-        # projected subgradient step
-        λ = proj_simplex(λ .- α .* g)
-    end
-
-    return (; λ=λ, pne_ks=pne_ks, C_pne=C_pne, status=:proj_subgrad)
+    return (; λ, z_use, primals, status, solverTime, pne_ks, C_pne)
 end
 
 function pne_to_distribution(pne_ks::Vector{Int}, λ::Vector{Float64}, K::Int)

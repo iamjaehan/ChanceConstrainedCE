@@ -11,11 +11,15 @@ using .VQState
 using .VQActions
 using .VQCosts
 
-# === CONFIG ===
 # csv_path = "schedule/flight_schedule_1h.csv"
 csv_path = "schedule/flight_schedule_1h_5b.csv"
-params = SimParams(2, [2, 2])       # 2 runways, 1 departure per epoch (mu)
-T_sim = 3                           # Number of epochs (16 for 60 minutes)
+
+# === LOAD .csv ===
+flights = VQSchedule.load_schedule(csv_path)
+
+# === CONFIG ===
+params = SimParams(2, [1, 2])       # 2 runways, 1 departure per epoch (mu)
+T_sim = 16                           # Number of epochs (16 for 60 minutes)
 
 lambda_fair = 1.0
 rho_release = 0.1
@@ -24,12 +28,10 @@ max_subset_size = 1024
 # sigma = fill(500.0, length(flights))
 sigma = fill(0.0, length(flights)) # Airline action uncertainty
 α = 0.9 # Credibility parameter (α = 0.9 → 90% certainty)
+Δ = 0.0
 zalpha = quantile(Normal(), α)
 
-# === LOAD .csv ===
-flights = VQSchedule.load_schedule(csv_path)
 state = init_state(params, length(flights))
-
 println("Loaded flights: ", length(flights))
 
 for step in 1:T_sim
@@ -87,7 +89,7 @@ for step in 1:T_sim
     # actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
 
     # # 2) solve CE (standard CE + epigraph)
-    # res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=0.0, zalpha = zalpha, sigma = sigma)
+    # res = SearchCorrTensor(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=Δ, zalpha = zalpha, sigma = sigma)
     # z = res.z   # length K
 
     # # 3) sample recommendation
@@ -117,9 +119,9 @@ for step in 1:T_sim
 
     # Find PNE set
     pne_ks = find_pne_set(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=1e-3, zalpha = zalpha, sigma = sigma)
-    println("How many pnes?:",length(pne_ks))   
-    # println("Chosen: ",game.joint_pushed[pne_ks[1]])
+    println("Number of pnes: ",length(pne_ks))   
     
+    # Debugger
     # out = max_regret_per_k(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=0.0)
     # summarize_regrets(out; tol=1e-7, top=10)
 
@@ -127,7 +129,7 @@ for step in 1:T_sim
         println("No PNE found this epoch")
     else
         # RRCE-like mixing
-        rr = solve_rrce_over_pne(game.C_air, pne_ks; max_iters=3000, step0=1.0, tol=1e-6)
+        rr = solve_rrce_over_pne(game.C_air, pne_ks, length(game.joint_pushed); Δ=Δ)
         z_use = pne_to_distribution(rr.pne_ks, rr.λ, length(game.joint_pushed))
 
         k_rec = sample_k(z_use)
