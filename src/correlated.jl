@@ -29,6 +29,7 @@ include("../VQSim/VQ_SearchCorrTensor.jl")
 export build_epoch_game_tensors, CalcH_Tensor, SearchCorrTensor, sample_k, realized_choice_conditional_BR
 include("../VQSim/VQ_BruteRRCETensor.jl")
 export find_pne_set, solve_rrce_over_pne, pne_to_distribution, sanity_check_mapping, summarize_regrets, max_regret_per_k
-
+include("../VQSim/VQ_Fcfs.jl")
+export select_fcfs
 
 end # module correlated
