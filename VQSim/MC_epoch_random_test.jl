@@ -215,6 +215,8 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
             obj = missing
             fair_gap = missing
             num_pne = get(solver_detail, "num_pne", missing)
+            dev_rate = get(solver_detail, "dev_rate", missing)
+            n_dev = get(solver_detail, "n_dev", missing)
 
             if status == "OK"
                 J_coord, _, _, _, air_avg_unw, _ = compute_epoch_metrics(
@@ -243,6 +245,8 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
                 obj = obj,
                 fairness_gap = fair_gap,
                 n_pushed = length(pushed),
+                n_dev = n_dev,
+                dev_rate = dev_rate,
                 solver_time_sec = solver_time,
                 wall_ms = wall_ms,
                 num_pne = num_pne
@@ -281,10 +285,10 @@ cfgE = MCEpochConfig(
     rho_release = 0.0,
     enable_deviation = true,
     coord_sigma_mode = SIGMA_SCALAR,
-    coord_sigma_scalar = 0,
+    coord_sigma_scalar = 200,
     coord_sigma_vec = Float64[],
     real_sigma_mode = SIGMA_SCALAR,
-    real_sigma_scalar = 0,
+    real_sigma_scalar = 200,
     real_sigma_vec = Float64[],
     N_mc = 30,
     base_seed = rand(1:10000,1)[1],

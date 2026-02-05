@@ -234,8 +234,32 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
     nP = length(active_airlines)
     solver_detail = Dict{String,Any}()
 
+    # --- active set (이번 epoch에서 의사결정 대상 flight) ---
+    active_set = Set{Int}()
+    for aid in active_airlines
+        for i in active_by_airline[aid]
+            push!(active_set, i)
+        end
+    end
+    n_active = length(active_set)
+    solver_detail["n_active"] = n_active
+
+    # --- helper: deviation rate (push/hold 구분 없이 "이행 실패" 비율) ---
+    function compute_dev_rate(pushed_rec::Vector{Int}, pushed_real::Vector{Int})
+        if n_active == 0
+            return 0.0, 0
+        end
+        Srec  = Set(pushed_rec)
+        Sreal = Set(pushed_real)
+        # push/no-push 판단이 바뀐 항공기들 = symmetric difference
+        dev_set = symdiff(Srec, Sreal)
+        n_dev = length(intersect(dev_set, active_set))
+        return n_dev / n_active, n_dev
+    end
+
     t0 = time()
     pushed_real = Int[]
+    pushed_rec  = Int[]
 
     # --- Greedy / FCFS도 game 텐서를 만들어서 동일한 (J_coord + fairness-gap) 기준 적용 ---
     if cfg.solver_mode == GREEDY_CENTRALIZED
@@ -244,10 +268,15 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
 
         k, fair_ok, gap = pick_k_min_coord_with_fairness(game.c_coord, game.C_air_fair, cfg.Δ)
         pushed_real = game.joint_pushed[k]
+        pushed_rec  = pushed_real
 
         solver_detail["k"] = k
         solver_detail["fair_feasible"] = fair_ok
         solver_detail["fair_gap_rec"] = gap
+
+        dev_rate, n_dev = compute_dev_rate(pushed_rec, pushed_real)
+        solver_detail["dev_rate"] = dev_rate
+        solver_detail["n_dev"] = n_dev
 
         t1 = time()
         return pushed_real, (t1 - t0), solver_detail
@@ -277,11 +306,16 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
         end
 
         pushed_real = pushed_fcfs
+        pushed_rec  = pushed_real
 
         solver_detail["k_oracle"] = k_oracle
         solver_detail["quotas"] = quotas
         solver_detail["fair_feasible"] = fair_ok
         solver_detail["fair_gap_rec"] = gap
+
+        dev_rate, n_dev = compute_dev_rate(pushed_rec, pushed_real)
+        solver_detail["dev_rate"] = dev_rate
+        solver_detail["n_dev"] = n_dev
 
         t1 = time()
         return pushed_real, (t1 - t0), solver_detail
@@ -301,33 +335,29 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
     z = nothing
 
     if cfg.solver_mode == CE_NAIVE
-        # naive = sigma ignored in solver (use zeros)
-        # res = SearchCorrTensor(game.C_air_ic, game.C_air_fair, game.c_coord,
-        #                        game.joint_choice, game.choice_to_k, game.action_sizes;
-        #                        Δ=cfg.Δ, zalpha=cfg.zalpha, sigma=zeros(size(game.C_air_ic,1)))
-        # z = res.z
-        # k_rec = sample_k(z)
-        # IMPORTANT: PNE detection must use IC costs (weighted) => game.C_air_ic
         pne_ks = find_pne_set(game.C_air_ic, game.joint_choice, game.choice_to_k, game.action_sizes;
                               tol=1e-3, zalpha=cfg.zalpha, sigma=zeros(size(game.C_air_ic,1)))
         solver_detail["num_pne"] = length(pne_ks)
 
         if isempty(pne_ks)
-            # fallback: do nothing (as you had), but record it
             solver_detail["fallback"] = "no_pne_push_none"
             pushed_real = Int[]
+            pushed_rec  = Int[]
+
+            dev_rate, n_dev = compute_dev_rate(pushed_rec, pushed_real)
+            solver_detail["dev_rate"] = dev_rate
+            solver_detail["n_dev"] = n_dev
+
             t1 = time()
             return pushed_real, (t1 - t0), solver_detail
         end
 
-        # IMPORTANT: RRCE must use (objective=c_coord, fairness=C_air_fair)
         rr = solve_rrce_over_pne(game.C_air_ic, pne_ks, length(game.joint_pushed);
                                  Δ=cfg.Δ, C_air_fair=game.C_air_fair, c_coord=game.c_coord)
 
         solver_detail["rrce_status"] = string(rr.status)
         solver_detail["rrce_time_sec"] = rr.solverTime
 
-        # Use rr.z_use directly (do NOT rebuild via pne_to_distribution)
         z = rr.z_use
         k_rec = sample_k(z)
 
@@ -339,27 +369,29 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
         k_rec = sample_k(z)
 
     elseif cfg.solver_mode == RRCE_PNE
-        # IMPORTANT: PNE detection must use IC costs (weighted) => game.C_air_ic
         pne_ks = find_pne_set(game.C_air_ic, game.joint_choice, game.choice_to_k, game.action_sizes;
                               tol=1e-3, zalpha=cfg.zalpha, sigma=sigma_coord)
         solver_detail["num_pne"] = length(pne_ks)
 
         if isempty(pne_ks)
-            # fallback: do nothing (as you had), but record it
             solver_detail["fallback"] = "no_pne_push_none"
             pushed_real = Int[]
+            pushed_rec  = Int[]
+
+            dev_rate, n_dev = compute_dev_rate(pushed_rec, pushed_real)
+            solver_detail["dev_rate"] = dev_rate
+            solver_detail["n_dev"] = n_dev
+
             t1 = time()
             return pushed_real, (t1 - t0), solver_detail
         end
 
-        # IMPORTANT: RRCE must use (objective=c_coord, fairness=C_air_fair)
         rr = solve_rrce_over_pne(game.C_air_ic, pne_ks, length(game.joint_pushed);
                                  Δ=cfg.Δ, C_air_fair=game.C_air_fair, c_coord=game.c_coord)
 
         solver_detail["rrce_status"] = string(rr.status)
         solver_detail["rrce_time_sec"] = rr.solverTime
 
-        # Use rr.z_use directly (do NOT rebuild via pne_to_distribution)
         z = rr.z_use
         k_rec = sample_k(z)
 
@@ -374,7 +406,6 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
 
     # realized deviation model (optional)
     if cfg.enable_deviation
-        # IMPORTANT: deviation must be based on IC costs (weighted)
         C_air_noisy = copy(game.C_air_ic)
         for i in 1:size(C_air_noisy,1)
             C_air_noisy[i, :] .+= sigma_real[i] .* randn(rng, size(C_air_noisy,2))
@@ -387,6 +418,10 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
     else
         pushed_real = pushed_rec
     end
+
+    dev_rate, n_dev = compute_dev_rate(pushed_rec, pushed_real)
+    solver_detail["dev_rate"] = dev_rate
+    solver_detail["n_dev"] = n_dev
 
     t1 = time()
     return pushed_real, (t1 - t0), solver_detail

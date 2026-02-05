@@ -212,6 +212,8 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
             obj = missing
             fair_gap = missing
             num_pne = get(solver_detail, "num_pne", missing)
+            dev_rate = get(solver_detail, "dev_rate", missing)
+            n_dev = get(solver_detail, "n_dev", missing)
 
             if status == "OK"
                 J_coord, _, _, _, air_avg_unw, _ = compute_epoch_metrics(
@@ -225,7 +227,7 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
                 obj = J_coord
                 fair_gap = gap
             end
-
+        
             push!(rows, (
                 mc = mc,
                 solver = string(smode),
@@ -240,6 +242,8 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
                 obj = obj,
                 fairness_gap = fair_gap,
                 n_pushed = length(pushed),
+                n_dev = n_dev,
+                dev_rate = dev_rate,
                 solver_time_sec = solver_time,
                 wall_ms = wall_ms,
                 num_pne = num_pne
@@ -265,7 +269,7 @@ cfgE = MCEpochConfig(
     csv_path = "schedule/flight_schedule_1h_5b.csv",
     params = VQState.SimParams(2, [2,2]),
     max_subset_size = 1024,
-    B0_total = 10,
+    B0_total = 5,
     Q0_runway = [2, 6],
     t_epoch = 0,
     lateness_mean = 10.0,
