@@ -275,7 +275,7 @@ cfgE = MCEpochConfig(
     csv_path = "schedule/flight_schedule_1h_5b.csv",
     params = VQState.SimParams(2, [2,2]),
     max_subset_size = 1024,
-    B0_total = 8,
+    B0_total = 6,
     Q0_runway = [3, 4],
     t_epoch = 0,
     lateness_mean = 10.0,
@@ -285,14 +285,14 @@ cfgE = MCEpochConfig(
     rho_release = 0.0,
     enable_deviation = true,
     coord_sigma_mode = SIGMA_SCALAR,
-    coord_sigma_scalar = 200,
+    coord_sigma_scalar = 0,
     coord_sigma_vec = Float64[],
     real_sigma_mode = SIGMA_SCALAR,
-    real_sigma_scalar = 200,
+    real_sigma_scalar = 0,
     real_sigma_vec = Float64[],
     N_mc = 30,
     base_seed = rand(1:10000,1)[1],
     solver_modes = [GREEDY_CENTRALIZED, AGG_ORACLE_FCFS, CE_FULL, CE_NAIVE, RRCE_PNE]
 )
 
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_0s_90c.csv")
