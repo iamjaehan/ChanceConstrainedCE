@@ -24,98 +24,107 @@ Returns NamedTuple with:
 """
 
 function build_epoch_game_tensors(
-  state,
-  flights,
-  active_airlines::Vector{Int},
-  active_by_airline::Dict{Int,Vector{Int}},
-  actions_by_player::Vector{Vector{Vector{Int}}},
-  joint_pushed::Vector{Vector{Int}},
-  joint_choice::Vector{Vector{Int}},
-  params;
-  n_runways::Int,
-  beta_queue::Float64 = 1.0,
-  rho_release::Float64 = 0.0
-)
-  nP = length(active_airlines)
-  @assert length(actions_by_player) == nP "actions_by_player length mismatch (must equal #active players)"
-  K = length(joint_pushed)
-  @assert length(joint_choice) == K "joint_choice length mismatch with joint_pushed"
-
-  # local action counts per player (for CE constraint enumeration)
-  action_sizes = [length(actions_by_player[p]) for p in 1:nP]
-  for p in 1:nP
-      @assert action_sizes[p] >= 1 "Player $p has empty action set; cannot build CE game"
-  end
-
-  # Build mapping from joint_choice tuple -> joint action index k
-  # Use NTuple for speed and correctness (no aliasing).
-  # nP is small, so this is fine for now.
-  choice_to_k = Dict{NTuple{0,Int},Int}()  # placeholder, will re-init below
-  # Julia needs concrete NTuple length; handle nP via generated conversion:
-  # We'll store as Tuple{Vararg{Int}} instead if you want simplicity.
-  # But you requested NTuple{nP,Int}; we can create it as Dict{Tuple,Int} safely.
-
-  choice_to_k_any = Dict{Tuple{Vararg{Int}}, Int}()
-
-  for k in 1:K
-      jc = joint_choice[k]
-      @assert length(jc) == nP "joint_choice[$k] has wrong length"
-      key = Tuple(jc)
-      if haskey(choice_to_k_any, key)
-          error("Duplicate joint_choice tuple at k=$k. key=$key already mapped to k=$(choice_to_k_any[key]).")
-      end
-      choice_to_k_any[key] = k
-  end
-
-  # Cost tensors
-  C_air = zeros(Float64, nP, K)
-  c_coord = zeros(Float64, K)
-
-  # Fill costs by evaluating each joint action once
-  for k in 1:K
-      pushed = joint_pushed[k]
-
-      out = VQCosts.compute_costs(
-          state.Q, pushed, flights,
-          active_airlines, active_by_airline, state.t, params;
-          n_runways = n_runways,
-          beta_queue = beta_queue,
-          rho_release = rho_release
-      )
-
-      c_coord[k] = out.J_coord
-
-      # airline costs in player order
-      for p in 1:nP
-          aid = active_airlines[p]
-          # ensure key exists; if not, it's a bug in compute_costs initialization
-          @assert haskey(out.J_air, aid) "compute_costs did not return J_air for active airline aid=$aid"
-          C_air[p, k] = out.J_air[aid]
-      end
-  end
-
-  # Quick sanity checks on mapping correctness (spot-check a few)
-  if K > 0
-      ktest = min(K, 3)
-      for k in 1:ktest
-          key = Tuple(joint_choice[k])
-          @assert choice_to_k_any[key] == k "choice_to_k mismatch at k=$k"
-      end
-  end
-
-  return (
-      nP = nP,
-      K = K,
-      C_air = C_air,
-      c_coord = c_coord,
-      action_sizes = action_sizes,
-      choice_to_k = choice_to_k_any,  # Tuple{Vararg{Int}} -> k
-      actions_by_player = actions_by_player,
-      joint_pushed = joint_pushed,
-      joint_choice = joint_choice,
-      active_airlines = active_airlines
+    state,
+    flights,
+    active_airlines::Vector{Int},
+    active_by_airline::Dict{Int,Vector{Int}},
+    actions_by_player::Vector{Vector{Vector{Int}}},
+    joint_pushed::Vector{Vector{Int}},
+    joint_choice::Vector{Vector{Int}},
+    params;
+    n_runways::Int,
+    beta_queue::Float64 = 1.0,
+    rho_release::Float64 = 0.0
   )
-end
+    nP = length(active_airlines)
+    @assert length(actions_by_player) == nP "actions_by_player length mismatch (must equal #active players)"
+    K = length(joint_pushed)
+    @assert length(joint_choice) == K "joint_choice length mismatch with joint_pushed"
+  
+    # local action counts per player (for CE constraint enumeration)
+    action_sizes = [length(actions_by_player[p]) for p in 1:nP]
+    for p in 1:nP
+        @assert action_sizes[p] >= 1 "Player $p has empty action set; cannot build CE game"
+    end
+  
+    # mapping from joint_choice tuple -> joint action index k
+    choice_to_k_any = Dict{Tuple{Vararg{Int}}, Int}()
+    for k in 1:K
+        jc = joint_choice[k]
+        @assert length(jc) == nP "joint_choice[$k] has wrong length"
+        key = Tuple(jc)
+        if haskey(choice_to_k_any, key)
+            error("Duplicate joint_choice tuple at k=$k. key=$key already mapped to k=$(choice_to_k_any[key]).")
+        end
+        choice_to_k_any[key] = k
+    end
+  
+    # --- Cost tensors ---
+    # IC/CE rationality constraint should use the airline's TRUE objective (pax-weighted)
+    C_air_ic   = zeros(Float64, nP, K)
+  
+    # Fairness-threshold constraint uses unweighted (recommended: avg per backlog flight)
+    C_air_fair = zeros(Float64, nP, K)
+  
+    # Coordinator objective
+    c_coord    = zeros(Float64, K)
+  
+    for k in 1:K
+        pushed = joint_pushed[k]
+  
+        out = VQCosts.compute_costs(
+            state.Q, pushed, flights,
+            active_airlines, active_by_airline, state.t, params;
+            n_runways = n_runways,
+            beta_queue = beta_queue,
+            rho_release = rho_release
+        )
+  
+        c_coord[k] = out.J_coord
+  
+        for p in 1:nP
+            aid = active_airlines[p]
+  
+            @assert haskey(out.J_air, aid) "compute_costs missing pax-weighted J_air for aid=$aid"
+            @assert haskey(out.J_air_avg_unw, aid) "compute_costs missing unweighted avg J_air_avg_unw for aid=$aid"
+  
+            # pax-weighted (true airline objective) -> IC constraints / PNE detection
+            C_air_ic[p, k] = out.J_air[aid]
+  
+            # unweighted avg -> fairness-threshold constraint / reporting
+            C_air_fair[p, k] = out.J_air_avg_unw[aid]
+        end
+    end
+  
+    # spot-check mapping correctness
+    if K > 0
+        ktest = min(K, 3)
+        for k in 1:ktest
+            key = Tuple(joint_choice[k])
+            @assert choice_to_k_any[key] == k "choice_to_k mismatch at k=$k"
+        end
+    end
+  
+    return (
+        nP = nP,
+        K = K,
+  
+        # Backward-compatible field: old solvers expect game.C_air
+        C_air = C_air_ic,
+  
+        # New fields for the "B" solvers
+        C_air_ic = C_air_ic,
+        C_air_fair = C_air_fair,
+        c_coord = c_coord,
+  
+        action_sizes = action_sizes,
+        choice_to_k = choice_to_k_any,
+        actions_by_player = actions_by_player,
+        joint_pushed = joint_pushed,
+        joint_choice = joint_choice,
+        active_airlines = active_airlines
+    )
+  end  
 
 """
 Standard correlated equilibrium (CE) incentive constraints for cost-minimization games.
@@ -250,15 +259,6 @@ function T3ConstTensor(xi, K::Int, nP::Int)
 end
 
 """
-Nonnegativity constraints for z: z >= 0  <=>  z >= 0
-Return vector length K.
-"""
-function ZNonnegConst(xi, K::Int)
-    z = xi[1:K]
-    return z
-end
-
-"""
 Objective: minimize sum(v) - sum(Δ) (optional constant shift)
 """
 function CalcEFJTensor(xi, K::Int, nP::Int, Δ)
@@ -271,69 +271,110 @@ function CalcEFJTensor(xi, K::Int, nP::Int, Δ)
 end
 
 """
-CorrPackerTensor: returns inequality vector h(x) >= 0
-
-Stack order:
-1) CE constraints: CalcH_Tensor(z, ...)
-2) T2: v - E[c] - Δ >= 0
-3) T3: w - v >= 0
-4) z >= 0
+Link constraints: v == E[c_fair] = C_air_fair * z
+We implement as equality constraints (preferred) rather than two-sided inequalities.
 """
-function CorrPackerTensor(
-  xi,
-  C_air,
-  joint_choice,
-  choice_to_k,
-  action_sizes;
-  Δ = 0.0,
-  zalpha::Real = 0.0,
-  sigma = 0.0
-)
-  nP, K = size(C_air)
-  z = xi[1:K]
-
-  h_ce = CalcH_Tensor(z, C_air, joint_choice, choice_to_k, action_sizes;
-                      zalpha = zalpha, sigma = sigma)
-  h_t2 = T2ConstTensor(xi, C_air, K, nP, Δ)
-  h_t3 = T3ConstTensor(xi, K, nP)
-  h_z  = ZNonnegConst(xi, K)
-
-  return vcat(h_ce, h_t2, h_t3, h_z)
+function LinkEqTensor(xi, C_air_fair, K::Int, nP::Int)
+    z = xi[1:K]
+    v = xi[K+1:K+nP]
+    return v .- (C_air_fair * z)
 end
 
 """
-Solve standard CE + epigraph for a per-epoch tensor game.
-
-Inputs:
-- C_air: (nP x K) airline cost matrix
-- joint_choice, choice_to_k, action_sizes: indexing artifacts from Step A
-
-Kwargs:
-- Δ: scalar or length-nP vector, default 0.0
-- z_init: optional initial distribution (length K). If not given, uniform.
-- v_init: optional (length nP). If not given, uses expected costs under z_init.
-- w_init: optional scalar. If not given, max(v_init).
-
-Returns NamedTuple:
-- primals, z, v, w, status, solverTime
+Gap constraints for fairness-threshold:
+- w >= v_i  for all i
+- v_i >= m  for all i
+- (w - m) <= Δ   <=>  Δ - (w - m) >= 0
 """
-function SearchCorrTensor(
-    C_air,
+function GapConstTensor(xi, K::Int, nP::Int, Δ::Real)
+    v = xi[K+1:K+nP]
+    w = xi[K+nP+1]
+    m = xi[K+nP+2]
+
+    c1 = w .- v          # nP
+    c2 = v .- m          # nP
+    c3 = [Δ - (w - m)]   # 1
+    return vcat(c1, c2, c3)
+end
+
+"""
+Nonnegativity constraints for z: z >= 0
+"""
+function ZNonnegConst(xi, K::Int)
+    z = xi[1:K]
+    return z
+end
+
+"""
+Packer for inequalities h(x) >= 0
+Stack:
+1) CE/IC constraints (weighted): CalcH_Tensor(z, C_air_ic, ...)
+2) Gap constraints (unweighted): GapConstTensor(...)
+3) z >= 0
+"""
+function CorrPackerTensor(
+    xi,
+    C_air_ic,
+    C_air_fair,
     joint_choice,
     choice_to_k,
     action_sizes;
-    Δ = 0.0,
+    Δ::Real = 0.0,
+    zalpha::Real = 0.0,
+    sigma = 0.0
+)
+    nP, K = size(C_air_ic)
+    @assert size(C_air_fair,1) == nP && size(C_air_fair,2) == K
+
+    z = xi[1:K]
+
+    h_ce  = CalcH_Tensor(z, C_air_ic, joint_choice, choice_to_k, action_sizes;
+                         zalpha = zalpha, sigma = sigma)
+
+    h_gap = GapConstTensor(xi, K, nP, Δ)
+    h_z   = ZNonnegConst(xi, K)
+
+    return vcat(h_ce, h_gap, h_z)
+end
+
+"""
+Solve CE with:
+- IC constraints on weighted airline costs (C_air_ic)
+- fairness-threshold constraint on unweighted costs (C_air_fair): max_i,j |E[u_i]-E[u_j]| <= Δ
+- objective: minimize expected coordinator cost dot(c_coord, z)
+
+Decision vars:
+xi = [ z (K); v (nP); w; m ]
+where v = E[C_air_fair * z], w = max(v), m = min(v)
+
+Equality constraints:
+1) sum(z) = 1
+2) v - C_air_fair*z = 0  (nP equalities)
+
+Inequality constraints:
+1) CE/IC constraints using C_air_ic (and uncertainty margin)
+2) gap constraints: w>=v, v>=m, Δ-(w-m)>=0
+3) z>=0
+"""
+function SearchCorrTensor(
+    C_air_ic,
+    C_air_fair,
+    c_coord,
+    joint_choice,
+    choice_to_k,
+    action_sizes;
+    Δ::Real = 0.0,
     zalpha::Real = 0.0,
     sigma = 0.0,
-    z_init = nothing,
-    v_init = nothing,
-    w_init = nothing
+    z_init = nothing
 )
-    nP, K = size(C_air)
+    nP, K = size(C_air_ic)
+    @assert size(C_air_fair,1) == nP && size(C_air_fair,2) == K
+    @assert length(c_coord) == K
 
     # --- dimensions ---
-    primal_dim = K + nP + 1
-    eq_dim = 1
+    primal_dim = K + nP + 2   # z + v + w + m
+    eq_dim = 1 + nP           # simplex + link(v = C_fair*z)
 
     # CE constraints count
     nCE = 0
@@ -341,12 +382,14 @@ function SearchCorrTensor(
         Ai = action_sizes[i]
         nCE += Ai * (Ai - 1)
     end
-    ineq_dim = nCE + nP + nP + K
 
-    # --- objective/equality/inequality in ParametricOptimizationProblem style ---
-    f(x, θ) = CalcEFJTensor(x, K, nP, Δ)
-    g(x, θ) = [sum(x[1:K]) - 1.0]  # simplex equality
-    h(x, θ) = CorrPackerTensor(x, C_air, joint_choice, choice_to_k, action_sizes; Δ = Δ, zalpha = zalpha, sigma = sigma)
+    ineq_dim = nCE + (2nP + 1) + K  # CE + gap + nonneg z
+
+    # --- objective / constraints ---
+    f(x, θ) = dot(c_coord, x[1:K])               # minimize expected coordinator cost
+    g(x, θ) = vcat([sum(x[1:K]) - 1.0], LinkEqTensor(x, C_air_fair, K, nP))
+    h(x, θ) = CorrPackerTensor(x, C_air_ic, C_air_fair, joint_choice, choice_to_k, action_sizes;
+                               Δ = Δ, zalpha = zalpha, sigma = sigma)
 
     problem = ParametricOptimizationProblem(;
         objective = f,
@@ -358,44 +401,52 @@ function SearchCorrTensor(
         inequality_dimension = ineq_dim,
     )
 
-    # --- initializer (important for stability) ---
-    if z_init === nothing
-        z0 = fill(1.0 / K, K)
-    else
-        @assert length(z_init) == K
-        z0 = collect(float.(z_init))
-        # (optional) normalize defensively
-        z0 ./= sum(z0)
-    end
+    # --- initializer ---
+    # if z_init === nothing
+    #     z0 = fill(1.0 / K, K)
+    # else
+    #     @assert length(z_init) == K
+    #     z0 = collect(float.(z_init))
+    #     z0 ./= sum(z0)
+    # end
 
-    if v_init === nothing
-        c0 = C_air * z0
-        if isa(Δ, Number)
-            v0 = c0 .+ float(Δ)
-        else
-            v0 = c0 .+ Δ
-        end
-    else
-        @assert length(v_init) == nP
-        v0 = collect(float.(v_init))
-    end
+    # v0 = C_air_fair * z0
+    # w0 = maximum(v0)
+    # m0 = minimum(v0)
 
-    if w_init === nothing
-        w0 = maximum(v0)
-    else
-        w0 = float(w_init)
-    end
-
-    x0 = vcat(z0, v0, [w0])
+    # x0 = vcat(z0, v0, [w0, m0])
 
     solverTime = @elapsed (; primals, variables, status, info) = solve(problem, [0.0])
 
     z = primals[1:K]
     v = primals[K+1:K+nP]
-    w = primals[end]
+    w = primals[K+nP+1]
+    m = primals[K+nP+2]
 
-    return (; primals, z, v, w, status, solverTime, info)
+    return (; primals, z, v, w, m, status, solverTime, info)
 end
+
+# ---------------------------------------------------------
+# Backward-compatible wrapper (optional)
+# If you still call SearchCorrTensor(C_air, joint_choice, ...) somewhere,
+# this makes it behave like the old one by using C_air for both ic & fair,
+# and objective = average airline cost (proxy).
+# ---------------------------------------------------------
+# function SearchCorrTensor(
+#     C_air,
+#     joint_choice,
+#     choice_to_k,
+#     action_sizes;
+#     Δ::Real = 0.0,
+#     zalpha::Real = 0.0,
+#     sigma = 0.0,
+#     z_init = nothing
+# )
+#     nP, K = size(C_air)
+#     c_proxy = vec(sum(C_air; dims=1)) ./ max(nP,1)   # proxy objective (avoid crashing legacy calls)
+#     return SearchCorrTensor(C_air, C_air, c_proxy, joint_choice, choice_to_k, action_sizes;
+#                             Δ=Δ, zalpha=zalpha, sigma=sigma, z_init=z_init)
+# end
 
 function sample_k(z::AbstractVector)
   w = Weights(z ./ sum(z))

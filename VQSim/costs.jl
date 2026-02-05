@@ -14,17 +14,15 @@ function predict_next_queue(Q::Vector{Int}, pushed::Vector{Int}, flights, n_runw
         r = flights[idx].runway
         tildeQ[r] += 1
     end
-    for i in 1:n_runways
-        tildeQ[i] - mu[i]
+    for r = 1:n_runways
+        tildeQ[r] = max(0, tildeQ[r] - mu[r])
     end
     return tildeQ
 end
 
-function queue_delay(Q, params, r; Q0=4)
-    return max(0, Q - Q0)
+function queue_delay(Q, params, r; Q0=1)
     mu = params.mu[r]
-    epsilon = 1e-3
-    return max(0, Q)/(mu+epsilon)*4.0
+    return max(0, Q - Q0)/mu*4
 end
 
 """
@@ -32,7 +30,8 @@ Compute nominal airline costs and coordinator cost for a candidate joint pushed 
 
 active_airlines: Vector{Int} (the player ordering for this epoch)
 active_by_airline: Dict airline_id => eligible flight indices (for fairness normalization)
-lambda_fair: weight on fairness
+
+beta_queue: weight for queue/taxi delay (currently used inside d_total construction)
 rho_release: regularizer weight on total released count (encourages throughput)
 """
 function compute_costs(
@@ -51,25 +50,29 @@ function compute_costs(
     tildeQ = predict_next_queue(Q, pushed, flights, n_runways, params)
 
     # --- Backlog set: all eligible flights (ready and not released) ---
-    # active_by_airline[aid] is assumed to list eligible flights for that airline at time t
     backlog = Int[]
     for aid in active_airlines
         append!(backlog, active_by_airline[aid])
     end
 
-    # airline costs (pax-weighted, over backlog flights)
-    J_air = Dict{Int, Float64}()
-    for aid in active_airlines
-        J_air[aid] = 0.0
-    end
+    # --- Airline backlog counts (for avg normalization) ---
+    n_backlog_air = Dict{Int,Int}(aid => length(active_by_airline[aid]) for aid in active_airlines)
+
+    # airline costs
+    # J_air: pax-weighted (THIS is what airlines optimize; use this for IC constraints)
+    J_air = Dict{Int,Float64}(aid => 0.0 for aid in active_airlines)
+
+    # unweighted airline costs (for fairness metric/constraint)
+    J_air_sum_unw = Dict{Int,Float64}(aid => 0.0 for aid in active_airlines)
 
     # coordinator cost: unweighted total delay over backlog flights
     total_delay_unweighted = 0.0
 
     pushed_set = Set(pushed)
 
-    # taxiway congestion penalty
-    tdelay = max(0,length(pushed) - 4.0)
+    # taxiway congestion penalty (as in your original)
+    tdelay = max(0, length(pushed) - 4.0)
+    # tdelay = 0
 
     for idx in backlog
         f = flights[idx]
@@ -78,28 +81,48 @@ function compute_costs(
         lateness = max(0, t - f.sched_t)
 
         # opportunity cost of waiting one more timestep
-        wait_penalty = idx in pushed_set ? 0.0 : 4.0
+        wait_penalty = (idx in pushed_set) ? 0.0 : 4.0
 
         # queue delay (depends on joint pushed)
-        qdelay = queue_delay(tildeQ[f.runway], params, f.runway; Q0=1)
+        qdelay = queue_delay(tildeQ[f.runway], params, f.runway; Q0=4.0)
 
-        d_total = lateness + wait_penalty + qdelay + tdelay
-
+        # NOTE: beta_queue is currently not separately applied; keeping d_total consistent with your old code.
+        if lateness + wait_penalty > 10 
+            d_total = (lateness+wait_penalty)^2 + qdelay + tdelay^2
+        else
+            d_total = wait_penalty + qdelay + tdelay^2
+        end
         total_delay_unweighted += d_total
+
+        # pax-weighted airline cost (IC)
         J_air[f.airline_id] += f.pax * d_total
-        # J_air[f.airline_id] += d_total
+
+        # unweighted airline cost (fairness)
+        J_air_sum_unw[f.airline_id] += d_total
+    end
+
+    # unweighted avg per airline (recommended primitive for fairness-threshold)
+    J_air_avg_unw = Dict{Int,Float64}()
+    for aid in active_airlines
+        n = n_backlog_air[aid]
+        J_air_avg_unw[aid] = (n > 0) ? (J_air_sum_unw[aid] / n) : 0.0
     end
 
     release_count = length(pushed)
 
-    # Under (B), J_coord naturally penalizes "do nothing" because backlog lateness grows with t.
-    # rho_release can be kept as a mild regularizer if you want.
-    J_coord = total_delay_unweighted - rho_release * release_count
+    # coordinator objective (unweighted total delay with optional throughput regularizer)
+    J_coord = total_delay_unweighted
 
     return (
         tildeQ = tildeQ,
         backlog = backlog,
-        J_air = J_air,
+
+        # airline costs
+        J_air = J_air,                     # pax-weighted (IC constraints)
+        J_air_sum_unw = J_air_sum_unw,     # unweighted sum (diagnostics)
+        J_air_avg_unw = J_air_avg_unw,     # unweighted avg (fairness constraint/metric)
+
+        # coordinator cost
         J_coord = J_coord,
         release_count = release_count,
         total_delay_unweighted = total_delay_unweighted

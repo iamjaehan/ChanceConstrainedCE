@@ -146,7 +146,7 @@ function run_mc(sweep::MCSweep; outdir::String="mc_out")
                             enable_deviation = cfg.enable_deviation,
                             total_time_sec = res.total_time_sec,
                             sum_solver_time_sec = sum(ts.solve_t),
-                            total_obj = res.total_delay_unweighted,
+                            total_obj = res.total_coord_obj,
                             avg_Qsum = mean(ts.Qsum),
                             avg_backlog = mean(ts.n_backlog),
                             avg_pushed = mean(ts.n_pushed),
@@ -222,26 +222,32 @@ sweep = MCSweep(
     seeds = collect(1:2),
     n_reps = 1,
 
+    # solver_modes = [
+    #     GREEDY_CENTRALIZED,
+    #     AGG_ORACLE_FCFS,
+    #     CE_NAIVE,
+    #     CE_FULL,
+    #     RRCE_PNE
+    # ],
     solver_modes = [
         GREEDY_CENTRALIZED,
         AGG_ORACLE_FCFS,
         CE_NAIVE,
-        CE_FULL,
         RRCE_PNE
     ],
 
     # single sigma case (same for coordinator + realization)
-    coord_sigmas = [200.0],
-    real_sigmas  = [200.0],
+    coord_sigmas = [0.0],
+    real_sigmas  = [0.0],
 
     enable_deviation = true,
-
+    # csv_path = "schedule/flight_schedule_1h.csv",
     csv_path = "schedule/flight_schedule_1h_5b.csv",
-    T_sim = 6,
+    T_sim = 16,
     max_subset_size = 1024,
     lambda_fair = 1.0,
     rho_release = 0.0,
-    Δ = 100.0,
+    Δ = 1e12,
     α = 0.95
 )
 

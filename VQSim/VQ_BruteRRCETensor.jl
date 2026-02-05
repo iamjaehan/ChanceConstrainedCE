@@ -100,41 +100,101 @@ function PNEPacker(xi, C_pne::AbstractMatrix, d::Int, n::Int, Δ::Real)
 end
 
 """
-Solve the same subproblem structure as old SolveBruteSubProblem, but restricted to PNE columns.
+RRCE over PNE set with:
+- objective: minimize expected coordinator cost (c_coord ⋅ z)
+- fairness-threshold constraint (gap): max_i E[u_i] - min_i E[u_i] <= Δ
+  where u_i are computed from C_air_fair (recommended: unweighted avg airline delay).
 
-Inputs:
-- C_air: (n x K) cost tensor flattened over joint actions
-- pne_ks: indices of PNE joint actions (length d)
-Returns:
-- λ, z_use (length K; mass only on pne_ks), and primals for debugging.
+Decision vector:
+xi = [ λ(1:d); v(1:nP); w; m ]
+  λ : mixture over PNEs (simplex)
+  v : expected fairness-cost per airline (v = C_fair_pne * λ)
+  w : max(v)
+  m : min(v)
+
+Equality constraints:
+1) sum(λ) = 1
+2) v - C_fair_pne * λ = 0   (nP eqs)
+
+Inequality constraints (>= 0 convention):
+- λ >= 0
+- w - v_i >= 0          ∀i
+- v_i - m >= 0          ∀i
+- Δ - (w - m) >= 0
 """
 function solve_rrce_over_pne(
-    C_air::AbstractMatrix,
+    C_air_ic::AbstractMatrix,        # kept for backward compatibility / sanity (not used here)
     pne_ks::Vector{Int},
     K_total::Int;
-    Δ::Real = 0.0
+    Δ::Real = 0.0,
+    C_air_fair = nothing,            # (nP x K_total), REQUIRED
+    c_coord = nothing                # (K_total,), REQUIRED
 )
-    n, _ = size(C_air)
     d = length(pne_ks)
     @assert d > 0 "No PNE found; cannot solve RRCE subproblem."
 
-    C_pne = C_air[:, pne_ks]  # (n x d)
+    @assert C_air_fair !== nothing "solve_rrce_over_pne requires keyword C_air_fair (nP x K)."
+    @assert c_coord !== nothing     "solve_rrce_over_pne requires keyword c_coord (length K)."
 
-    f(x, θ) = CalcEFJ_PNE(x, d, n, Δ)
-    g(x, θ) = [sum(x[1:d]) - 1.0]  # simplex sum-to-1
-    h(x, θ) = PNEPacker(x, C_pne, d, n, Δ)
+    nP, Kcheck = size(C_air_fair)
+    @assert Kcheck == K_total "C_air_fair second dim must equal K_total."
+    @assert length(c_coord) == K_total "c_coord length must equal K_total."
+
+    # Restrict to PNE columns
+    C_fair_pne = C_air_fair[:, pne_ks]     # (nP x d)
+    c_pne      = c_coord[pne_ks]           # (d,)
+
+    # ----- variable layout -----
+    # xi = [λ(d); v(nP); w; m]
+    primal_dim = d + nP + 2
+    eq_dim     = 1 + nP
+
+    # inequality: λ (d) + (w-v) (nP) + (v-m) (nP) + gap (1)
+    ineq_dim   = d + 2nP + 1
+
+    # ----- objective -----
+    f(x, θ) = dot(c_pne, x[1:d])
+
+    # ----- equalities -----
+    function g(x, θ)
+        λ = x[1:d]
+        v = x[d+1 : d+nP]
+        return vcat([sum(λ) - 1.0], v .- (C_fair_pne * λ))
+    end
+
+    # ----- inequalities (>= 0) -----
+    function h(x, θ)
+        λ = x[1:d]
+        v = x[d+1 : d+nP]
+        w = x[d+nP+1]
+        m = x[d+nP+2]
+
+        return vcat(
+            λ,                 # λ >= 0
+            (w .- v),          # w >= v
+            (v .- m),          # v >= m
+            [Δ - (w - m)]      # w - m <= Δ
+        )
+    end
 
     problem = ParametricOptimizationProblem(;
         objective = f,
         equality_constraint = g,
         inequality_constraint = h,
         parameter_dimension = 1,
-        primal_dimension = d + n + 1,
-        equality_dimension = 1,
-        inequality_dimension = d + 3n,
+        primal_dimension = primal_dim,
+        equality_dimension = eq_dim,
+        inequality_dimension = ineq_dim,
     )
 
-    solverTime = @elapsed (; primals, variables, status, info) = solve(problem, [0])
+    # ----- initializer -----
+    # λ0 = fill(1.0 / d, d)
+    # v0 = C_fair_pne * λ0
+    # w0 = maximum(v0)
+    # m0 = minimum(v0)
+    # x0 = vcat(λ0, v0, [w0, m0])
+
+    solverTime = @elapsed (; primals, variables, status, info) = solve(problem, [0.0])
 
     λ = primals[1:d]
 
@@ -146,8 +206,9 @@ function solve_rrce_over_pne(
     s = sum(z)
     z_use = s > 0 ? z ./ s : z
 
-    return (; λ, z_use, primals, status, solverTime, pne_ks, C_pne)
+    return (; λ, z_use, primals, status, solverTime, pne_ks, C_fair_pne, c_pne, info)
 end
+
 
 function pne_to_distribution(pne_ks::Vector{Int}, λ::Vector{Float64}, K::Int)
     z = zeros(Float64, K)
