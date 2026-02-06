@@ -101,7 +101,7 @@ end
 # ----------------------------
 # MC runner (1 epoch 고정, MC에서 rng만 변경)
 # ----------------------------
-Base.@kwdef struct MCEpochConfig
+Base.@kwdef mutable struct MCEpochConfig
     csv_path::String
     params::VQState.SimParams
     max_subset_size::Int
