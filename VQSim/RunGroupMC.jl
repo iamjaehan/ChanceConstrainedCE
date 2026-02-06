@@ -21,7 +21,7 @@ cfgE = MCEpochConfig(
     real_sigma_mode = SIGMA_SCALAR,
     real_sigma_scalar = 0,
     real_sigma_vec = Float64[],
-    N_mc = 50,
+    N_mc = 100,
     base_seed = overall_seed,
     solver_modes = [GREEDY_CENTRALIZED, AGG_ORACLE_FCFS, CE_FULL, CE_NAIVE, RRCE_PNE]
 )
@@ -44,10 +44,10 @@ cfgE.B0_total = 7
 println("Running test case 4")
 df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_7a_0s_90c.csv")
 
-### Test case 5 ### 8 / 0 / 0.9
-# cfgE.B0_total = 8
-# println("Running test case 5")
-# df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_8a_0s_90c.csv")
+## Test case 5 ### 8 / 0 / 0.9
+cfgE.B0_total = 8
+println("Running test case 5")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_8a_0s_90c.csv")
 
 ### Test case 6 ### 6 / 5 / 0.9
 cfgE.B0_total = 6
@@ -57,35 +57,40 @@ println("Running test case 6")
 df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_5s_90c.csv")
 
 ### Test case 7 ### 6 / 15 / 0.9
-cfgE.coord_sigma_scalar = 15
-cfgE.real_sigma_scalar = 15
+cfgE.coord_sigma_scalar = 20
+cfgE.real_sigma_scalar = 20
 println("Running test case 7")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_15s_90c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_20s_90c.csv")
 
 ### Test case 8 ### 6 / 30 / 0.9
-cfgE.coord_sigma_scalar = 30
-cfgE.real_sigma_scalar = 30
+cfgE.coord_sigma_scalar = 45
+cfgE.real_sigma_scalar = 45
 println("Running test case 8")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_30s_90c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_45s_90c.csv")
 
 ### Test case 9 ### 6 / 15 / 0.5
-cfgE.coord_sigma_scalar = 15
-cfgE.real_sigma_scalar = 15
+cfgE.coord_sigma_scalar = 20
+cfgE.real_sigma_scalar = 20
 cfgE.alpha = 0.5
 println("Running test case 9")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_15s_50c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_20s_50c.csv")
 
 ### Test case 10 ### 6 / 15 / 0.75
 cfgE.alpha = 0.75
 println("Running test case 10")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_15s_75c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_20s_75c.csv")
 
 ### Test case 11 ### 6 / 15 / 0.95
 cfgE.alpha = 0.95
 println("Running test case 11")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_15s_95c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_20s_95c.csv")
 
-### Test case 11 ### 6 / 15 / 0.99
+### Test case 12 ### 6 / 15 / 0.99
 cfgE.alpha = 0.99
 println("Running test case 12")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_15s_99c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_20s_99c.csv")
+
+### Test case 13 ### 6 / 15 / 0.99
+cfgE.alpha = 0.3
+println("Running test case 13")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_20s_30c.csv")
