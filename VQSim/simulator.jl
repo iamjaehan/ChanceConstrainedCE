@@ -9,6 +9,7 @@ include("costs.jl")
 include("VQ_BruteRRCETensor.jl")
 include("VQ_SearchCorrTensor.jl")
 include("VQ_Fcfs.jl")
+include("../src/init.jl")
 
 using .VQSchedule
 using .VQState

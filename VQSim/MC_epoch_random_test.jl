@@ -118,6 +118,7 @@ Base.@kwdef struct MCEpochConfig
     lambda_fair::Float64 = 1.0
     rho_release::Float64 = 0.0
     enable_deviation::Bool = true
+    alpha::Float64 = 0.9
 
     # uncertainty knobs
     coord_sigma_mode::SigmaMode = SIGMA_SCALAR
@@ -147,7 +148,7 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
         lambda_fair = cfgE.lambda_fair,
         rho_release = cfgE.rho_release,
         Δ = cfgE.Δ,
-        zalpha = quantile(Normal(), 0.99),
+        zalpha = quantile(Normal(), cfgE.alpha),
         seed = cfgE.base_seed,
         coord_sigma_mode = cfgE.coord_sigma_mode,
         coord_sigma_scalar = cfgE.coord_sigma_scalar,
@@ -284,6 +285,7 @@ cfgE = MCEpochConfig(
     lambda_fair = 1.0,
     rho_release = 0.0,
     enable_deviation = true,
+    alpha = 0.9,
     coord_sigma_mode = SIGMA_SCALAR,
     coord_sigma_scalar = 10,
     coord_sigma_vec = Float64[],
@@ -295,4 +297,4 @@ cfgE = MCEpochConfig(
     solver_modes = [GREEDY_CENTRALIZED, AGG_ORACLE_FCFS, CE_FULL, CE_NAIVE, RRCE_PNE]
 )
 
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_6a_10s_99c.csv")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_ignore.csv")
