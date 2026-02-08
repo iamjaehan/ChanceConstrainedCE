@@ -500,3 +500,118 @@ function realized_choice_conditional_BR(
 
     return choice_to_k[Tuple(choice)]
 end
+
+"""
+CE-consistent realized choice under the standard CE information structure.
+
+Given a sampled recommendation k_rec ~ z, each player i observes only their own
+recommended local action a_i = joint_choice[k_rec][i], and chooses
+
+    a_i^* ∈ argmin_{a_i'} E[ c_i(a_i', a_{-i}) | a_i ]
+
+where the conditional distribution is induced by z restricted to the event
+{ joint_choice[k][i] == a_i }.
+
+This corresponds exactly to the unilateral deviation test used in CE constraints.
+
+Tie-break rule:
+- If the recommended action is within `tol` of the best response, follow the recommendation.
+- With sigma=0 and an exact CE solution, this yields no deviation (up to tol).
+"""
+function realized_choice_conditional_CE_BR(
+    C_air_noisy,
+    joint_choice,
+    choice_to_k,
+    action_sizes,
+    z::AbstractVector,
+    k_rec::Int;
+    tol::Real = 1e-12
+)
+    nP, K = size(C_air_noisy)
+    @assert length(z) == K "z length mismatch"
+    @assert length(joint_choice) == K "joint_choice length mismatch"
+    @assert length(action_sizes) == nP "action_sizes length mismatch"
+
+    # recommended local actions
+    rec = joint_choice[k_rec]
+    @assert length(rec) == nP "joint_choice[k_rec] length mismatch"
+
+    # realized local actions (simultaneous mapping from recommendation)
+    choice = copy(rec)
+    regret = zeros(Float64, nP)
+
+    # for each player i, compute conditional BR given own recommendation rec[i]
+    for i in 1:nP
+        ai_rec = rec[i]
+
+        # denom = P(a_i == ai_rec) under z
+        denom = 0.0
+        for k in 1:K
+            if joint_choice[k][i] == ai_rec
+                denom += z[k]
+            end
+        end
+
+        # If conditioning event has ~0 mass, fall back to "hold others at recommendation"
+        # (rare; usually shouldn't happen if k_rec has positive mass and z is consistent)
+        if denom <= 0.0
+            best_ai = ai_rec
+            best_val = C_air_noisy[i, k_rec]
+            for ai in 1:action_sizes[i]
+                ai == ai_rec && continue
+                tmp = copy(rec)
+                tmp[i] = ai
+                k_dev = choice_to_k[Tuple(tmp)]
+                val = C_air_noisy[i, k_dev]
+                if val + tol < best_val
+                    best_val = val
+                    best_ai = ai
+                end
+            end
+            choice[i] = best_ai
+            continue
+        end
+
+        best_ai = ai_rec
+        best_val = Inf
+        rec_val  = Inf
+
+        for ai in 1:action_sizes[i]
+            exp_cost = 0.0
+
+            # conditional expectation over joint actions k such that joint_choice[k][i] == ai_rec
+            for k in 1:K
+                if joint_choice[k][i] == ai_rec
+                    p = z[k] / denom
+                    base = joint_choice[k]
+                    tmp = copy(base)
+                    tmp[i] = ai
+                    k_dev = choice_to_k[Tuple(tmp)]
+                    exp_cost += p * C_air_noisy[i, k_dev]
+                end
+            end
+
+            if ai == ai_rec
+                rec_val = exp_cost
+            end
+
+            if exp_cost < best_val
+                best_val = exp_cost
+                best_ai = ai
+            end
+        end
+
+        regret[i] = rec_val - best_val  # >= 0 ideally (up to numerical noise)
+
+        # tie-break: follow recommendation if it's essentially optimal
+        if rec_val <= best_val + tol
+            choice[i] = ai_rec
+        else
+            choice[i] = best_ai
+        end
+    end
+
+    k_real = choice_to_k[Tuple(choice)]
+    return k_real, regret
+    # return choice_to_k[Tuple(choice)]
+end

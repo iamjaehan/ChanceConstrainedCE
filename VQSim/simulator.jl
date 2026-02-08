@@ -411,17 +411,26 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
         for i in 1:size(C_air_noisy,1)
             C_air_noisy[i, :] .+= sigma_real[i] .* randn(rng, size(C_air_noisy,2))
         end
-        k_real = realized_choice_conditional_BR(
-            C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
+        k_real, regret = realized_choice_conditional_CE_BR(
+            C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, z, k_rec;
+            tol = 1e-8
         )
         solver_detail["k_real"] = k_real
+        solver_detail["max_regret"] = maximum(regret)
+
+        # ---- binary deviation flag (CE-intended) ----
+        eps_regret = 1e-9   # 수치오차/동률 흡수
+        dev_flag = (solver_detail["max_regret"] > eps_regret) ? 1 : 0
+
+        solver_detail["dev_rate"] = dev_flag
+
         pushed_real = game.joint_pushed[k_real]
     else
+        solver_detail["dev_rate"] = 0
         pushed_real = pushed_rec
     end
 
     dev_rate, n_dev = compute_dev_rate(pushed_rec, pushed_real)
-    solver_detail["dev_rate"] = dev_rate
     solver_detail["n_dev"] = n_dev
 
     t1 = time()
