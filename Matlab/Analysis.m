@@ -41,6 +41,7 @@ onlyOK  = true;
 % If you want to filter "invalid RRCE runs" (optional; default off)
 % Example: require num_pne > 0 for RRCE_PNE
 filterInvalidRRCE = true;
+filterCEFullNoProgress = true;   % <-- on/off switch
 
 %% ---------------------------
 % Load all CSV files
@@ -94,6 +95,18 @@ assert(height(allRows) > 0, "No usable rows loaded. Check dataDir + filename pat
 if filterInvalidRRCE && ismember("num_pne", string(allRows.Properties.VariableNames))
     rrce = allRows.algorithm=="RRCE_PNE";
     allRows = allRows(~rrce | (allRows.num_pne > 0), :);
+end
+
+if filterCEFullNoProgress
+    % robust string normalization
+    st = lower(strtrim(string(allRows.status)));
+    isCEfull = (string(allRows.algorithm) == "CE_FULL");
+
+    % Treat any of these as "non-progress"
+    badStatus = (st == "mcp_noprogress") | (st == "mcp_noprogress" ) | (st == "mcp_no_progress");
+    % (include both spellings to be safe)
+
+    allRows = allRows(~(isCEfull & badStatus), :);
 end
 
 %% ---------------------------
@@ -196,7 +209,7 @@ exportgraphics(gcf, "eff_uncertainty.pdf","Resolution",300);
 
 plot_errorbar_devfreq_bySigma( ...
     allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
-    [ALG.CENTRAL, ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
     "Deviation frequency vs uncertainty");
 exportgraphics(gcf, "devfreq_uncertainty.pdf","Resolution",300);
 
@@ -233,7 +246,6 @@ plot_conditional_cost_alpha_box( ...
     "obj", "normalized cost $J/J_{\mathrm{greedy}}$", ...
     "Alpha sweep: conditional cost diagnostics");
 exportgraphics(gcf, "alpha_conditional_cost.pdf","Resolution",300);
-
 
 
 %% ============================================================
@@ -494,7 +506,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
     assert(height(X)>0, "No data found for plot: %s", ttl);
 
     % Need n_dev
-    assert(ismember("n_dev", string(X.Properties.VariableNames)), ...
+    assert(ismember("dev_rate", string(X.Properties.VariableNames)), ...
         "Column 'n_dev' is required for deviation frequency plot.");
 
     sigmaOrder = spec.sigma(:)';
@@ -524,7 +536,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
             if height(Xi)==0, continue; end
 
             % Event: any deviation in epoch
-            yi = Xi.n_dev > 0;
+            yi = Xi.dev_rate > 0;
 
             n = numel(yi);
             phat = mean(yi);
