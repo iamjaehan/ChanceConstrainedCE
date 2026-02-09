@@ -25,6 +25,8 @@ set(groot, 'defaultLegendInterpreter', 'latex');
 set(groot, 'defaultAxesFontSize', 18);
 set(groot, 'defaultTextFontSize', 18);
 set(groot, 'defaultLegendFontSize', 18);
+set(groot, 'defaultTextFontWeight', 'normal');
+set(groot, 'defaultAxesFontWeight', 'normal');
 
 % Optional but recommended for papers
 set(groot, 'defaultAxesLineWidth', 1.2);
@@ -121,8 +123,7 @@ ALG.CENTRAL   = "GREEDY_CENTRALIZED";
 % ---- Display names (legend labels) ----
 global DISP
 DISP = containers.Map();
-DISP("GREEDY_CENTRALIZED") = "CENT" + ...
-    "";
+DISP("GREEDY_CENTRALIZED") = "CENT";
 DISP("AGG_ORACLE_FCFS")    = "FCFS";
 DISP("CE_FULL")            = "CE_FULL";
 DISP("CE_NAIVE")           = "CE_NAIVE";
@@ -287,6 +288,7 @@ function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    yline(240000)
 
     yl = ylim(ax);
     nG = numel(categories(X.xcat));
