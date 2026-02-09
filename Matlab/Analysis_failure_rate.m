@@ -25,6 +25,8 @@ set(groot, 'defaultLegendInterpreter', 'latex');
 set(groot, 'defaultAxesFontSize', 18);
 set(groot, 'defaultTextFontSize', 18);
 set(groot, 'defaultLegendFontSize', 18);
+set(groot, 'defaultTextFontWeight', 'normal');
+set(groot, 'defaultAxesFontWeight', 'normal');
 
 % Optional but recommended for papers
 set(groot, 'defaultAxesLineWidth', 1.2);
@@ -314,7 +316,7 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     ax.XTick = x; ax.XTickLabel = xlab;
     xlabel(ax, "aircraft count (a)");
     grid(ax,'on');
-    legend(ax, {"mean \#PNE","failure rate"}, 'Location','best');
+    legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northeast');
 
     exportgraphics(gcf, "pne_ac.pdf","Resolution",300);
 
@@ -362,7 +364,7 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     ax.XTick = x; ax.XTickLabel = xlab;
     xlabel(ax, "Utility uncertainty $\sigma$");
     grid(ax,'on');
-    legend(ax, {"mean \#PNE","failure rate"}, 'Location','best');
+    legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northeast');
 
     exportgraphics(gcf, "pne_sigma.pdf","Resolution",300);
 
@@ -407,7 +409,7 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     ax.XTick = x; ax.XTickLabel = xlab;
     xlabel(ax, "confidence $\alpha$ [\%]");
     grid(ax,'on');
-    legend(ax, {"mean \#PNE","failure rate"}, 'Location','best');
+    legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northeast');
     yl = ylim(ax);    
     yt = ax.YTick;
     ax.YTickLabel = compose('%.0f', 100*yt);

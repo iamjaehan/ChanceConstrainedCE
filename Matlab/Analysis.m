@@ -300,7 +300,7 @@ function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
     ax.YScale = 'log';
 
     % FIX: legend must match categories actually used
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northwest','Interpreter', 'latex','FontName','times');
 end
 
 function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
@@ -339,7 +339,7 @@ function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
     end
 
     % FIX: legend must match categories actually used
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northwest','Interpreter', 'latex','FontName','times');
 end
 
 function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
@@ -408,7 +408,7 @@ function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
             'HandleVisibility','off');
     end
 
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times');
 end
 
 function plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
@@ -472,7 +472,7 @@ function plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times');
 end
 
 
@@ -559,7 +559,7 @@ function plot_errorbar_devfreq_byAlpha(T, spec, algs, ttl)
     yt = ax.YTick;
     ax.YTickLabel = compose('%.0f', 100*yt);
     grid(ax,'on');
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times','FontName','times');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times','FontName','times');
 end
 
 function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
@@ -647,7 +647,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
     yt = ax.YTick;
     ax.YTickLabel = compose('%.0f', 100*yt);
     grid(ax,'on');
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times');
 end
 
 function out = map_display_names(cats, DISP)
