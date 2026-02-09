@@ -36,7 +36,7 @@ set(groot, 'defaultFigureColor', 'w');
 % ----------------------------
 dataDir = ".."; % folder containing all CSVs
 fileGlob = fullfile(dataDir, "*.csv"); % or "mc_epoch_results_*.csv"
-onlyOK  = true;
+onlyOK  = false;
 
 % If you want to filter "invalid RRCE runs" (optional; default off)
 % Example: require num_pne > 0 for RRCE_PNE
@@ -118,6 +118,25 @@ ALG.CE_NAIVE  = "CE_NAIVE";
 ALG.FCFS      = "AGG_ORACLE_FCFS";
 ALG.CENTRAL   = "GREEDY_CENTRALIZED";
 
+% ---- Display names (legend labels) ----
+global DISP
+DISP = containers.Map();
+DISP("GREEDY_CENTRALIZED") = "CENT" + ...
+    "";
+DISP("AGG_ORACLE_FCFS")    = "FCFS";
+DISP("CE_FULL")            = "CE_FULL";
+DISP("CE_NAIVE")           = "CE_NAIVE";
+DISP("RRCE_PNE")           = "CE_RRCE (ours)";
+
+% ---- Fixed colors per algorithm (RGB in [0,1]) ----
+global COL
+COL = containers.Map();
+COL("GREEDY_CENTRALIZED") = [0.2 0.2 0.2];
+COL("AGG_ORACLE_FCFS")    = [0.49 0.18 0.56];
+COL("CE_FULL")            = [0.85 0.33 0.10];
+COL("CE_NAIVE")           = [0.93 0.69 0.13];
+COL("RRCE_PNE")           = [0.0 0.45 0.74];
+
 % ------------------------------------------------------------
 % Additive "normalized" cost relative to GREEDY_CENTRALIZED
 % obj_norm := obj - obj_greedy
@@ -169,9 +188,9 @@ end
 plot_box_byA( ...
     allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
     [ALG.CE_FULL, ALG.RRCE_PNE], ...
-    "wall_ms", "wall time (ms) [log]", ...
-    "Scalability: wall time vs aircraft count");
-exportgraphics(gcf, "Scalability.pdf","Resolution",300);
+    "wall_ms", "Computation time [ms] (log)", ...
+    "");
+exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
 
 %% ============================================================
 % 2) Efficiency-to-scale: obj for 6/0/90 vs 8/0/90, exclude CE_NAIVE
@@ -184,69 +203,48 @@ algs2(algs2 == ALG.CE_NAIVE) = [];
 plot_box_byA2( ...
     allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
     algs2, ...
-    "obj", "cost", ...
-    "Efficiency vs scale");
-exportgraphics(gcf, "eff_scale.pdf","Resolution",300);
+    "obj", "cost [min]", ...
+    "");
+exportgraphics(gcf, "2_OverallCost.pdf","Resolution",300);
+
+%% ==========
+% 3) Deviation rate [\%] by sigma
+% ============
+plot_errorbar_devfreq_bySigma( ...
+    allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
+    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+    "");
+exportgraphics(gcf, "3_devfreq_uncertainty.pdf","Resolution",300);
 
 %% ============================================================
-% 3) Efficiency-to-error: obj for 6/0/90, 6/10/90, 6/30/90
+% 4) Efficiency-to-error: obj for 6/0/90, 6/10/90, 6/30/90
 % x: coord_sigma, y: obj, alg: FCFS, CE_NAIVE, RRCE_PNE
 % ============================================================
 plot_box_bySigma( ...
     allRows, struct("a",6, "sigma",[0 5 20 45], "alpha",90), ...
-    [ALG.CENTRAL, ALG.FCFS, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "cost", ...
-    "Efficiency vs uncertainty");
-exportgraphics(gcf, "eff_uncertainty.pdf","Resolution",300);
-
-%%
-% plot_errorbar_bySigma( ...
-%     allRows, struct("a",6, "sigma",[0 5 15 30], "alpha",90), ...
-%     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-%     "obj", "cost", ...
-%     "Efficiency vs uncertainty");
-% exportgraphics(gcf, "eff_uncertainty.pdf","Resolution",300);
-
-plot_errorbar_devfreq_bySigma( ...
-    allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "Deviation frequency vs uncertainty");
-exportgraphics(gcf, "devfreq_uncertainty.pdf","Resolution",300);
-
-plot_conditional_cost_sigma_box( ...
-    allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
-    [ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", ...
-    "normalized cost $J/J_{\mathrm{greedy}}$", ...
-    "Sigma sweep: conditional cost diagnostics");
+    "obj", "cost [min]", ...
+    "");
+exportgraphics(gcf, "4_eff_uncertainty.pdf","Resolution",300);
 
 %% ============================================================
-% 4) Alpha sweep: (6/10/70, 6/10/90, 6/10/99)
-% alg: CE_NAIVE, RRCE_PNE
-% two metrics: obj and dev_rate (stacked)
+% 5) Efficiency vs confidence (alpha sweep)  [separate figure]
 % ============================================================
-% plot_two_metric_alpha_box( ...
-%     allRows, struct("a",6, "sigma",15, "alpha",[50 75 90 95 99]), ...
-%     [ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-%     "obj", "cost", ...
-%     "dev_rate", "deviation rate", ...
-%     "Alpha sweep");
-% exportgraphics(gcf, "alpha.pdf","Resolution",300);
-
-plot_two_metric_alpha_box( ...
+plot_box_byAlpha( ...
     allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
-    [ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "normalized cost $J/J_{\mathrm{greedy}}$", ...
-    "Deviation frequency $\Pr(n_{\mathrm{dev}}>0)$", ...
-    "Alpha sweep (cost vs deviation)");
-%%
-plot_conditional_cost_alpha_box( ...
-    allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
-    [ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "normalized cost $J/J_{\mathrm{greedy}}$", ...
-    "Alpha sweep: conditional cost diagnostics");
-exportgraphics(gcf, "alpha_conditional_cost.pdf","Resolution",300);
+    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+    "obj", "cost [min]", ...
+    "");
+exportgraphics(gcf, "eff_confidence.pdf","Resolution",300);
 
+%% ============================================================
+% 6) Deviation rate [\%] vs confidence (alpha sweep) [separate figure]
+% ============================================================
+plot_errorbar_devfreq_byAlpha( ...
+    allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
+    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+    "");
+exportgraphics(gcf, "devfreq_confidence.pdf","Resolution",300);
 
 %% ============================================================
 % ==================== Local functions ========================
@@ -264,6 +262,7 @@ function meta = parse_case_from_filename(fname)
 end
 
 function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
+    global DISP COL
     algs = string(algs);
 
     X = T( ismember(T.a, spec.a) & T.coord_sigma==spec.sigma & T.alpha==spec.alpha ...
@@ -280,18 +279,32 @@ function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
 
     figure('Name', ttl);
     ax = axes(); hold(ax,'on');
-    boxchart(ax, X.xcat, log(X.(yfield)), 'GroupByColor', X.algorithm);
+    h = boxchart(ax, X.xcat, X.(yfield), 'GroupByColor', X.algorithm, 'MarkerStyle','none');
+    apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
+
 
     xlabel("aircraft count (a)");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
 
+    yl = ylim(ax);
+    nG = numel(categories(X.xcat));
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', ...
+            'Color', [0.2 0.2 0.2], ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility','off');
+    end
+
+    ax.YScale = 'log';
+
     % FIX: legend must match categories actually used
-    legend(ax, categories(X.algorithm), 'Location','best');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
 end
 
 function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
+    global DISP COL
     algs = string(algs);
 
     X = T( ismember(T.a, spec.a) & T.coord_sigma==spec.sigma & T.alpha==spec.alpha ...
@@ -308,18 +321,29 @@ function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
 
     figure('Name', ttl);
     ax = axes(); hold(ax,'on');
-    boxchart(ax, X.xcat, (X.(yfield)), 'GroupByColor', X.algorithm);
+    h = boxchart(ax, X.xcat, (X.(yfield)), 'GroupByColor', X.algorithm,'MarkerStyle','none');
+    apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
 
     xlabel("aircraft count (a)");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    
+    yl = ylim(ax);
+    nG = numel(categories(X.xcat));
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', ...
+            'Color', [0.2 0.2 0.2], ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility','off');
+    end
 
     % FIX: legend must match categories actually used
-    legend(ax, categories(X.algorithm), 'Location','best');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
 end
 
 function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
+    global DISP COL
     algs = string(algs);
 
     X = T( T.a==spec.a & ismember(T.coord_sigma, spec.sigma) & T.alpha==spec.alpha ...
@@ -336,168 +360,210 @@ function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
 
     figure('Name', ttl);
     ax = axes(); hold(ax,'on');
-    boxchart(ax, X.xcat, X.(yfield), 'GroupByColor', X.algorithm);
+    h = boxchart(ax, X.xcat, X.(yfield), 'GroupByColor', X.algorithm,'MarkerStyle','none');
+    apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
+
+    % after boxchart(...)
+    nAlg = numel(algs);
+    offsets = linspace(-0.33, 0.33, nAlg);   % boxchart보다 조금 넓게/좁게 조절 가능
+    
+    xBase = 1:numel(sOrder);
+    
+    for k = 1:nAlg
+        alg = algs(k);
+        Xk = X(X.algorithm==alg, :);
+    
+        mu = nan(size(xBase));
+        for i = 1:numel(sOrder)
+            Xi = Xk(Xk.xcat==string(sOrder(i)), :);
+            yi = Xi.(yfield);
+            yi = yi(~isnan(yi));
+            if isempty(yi), continue; end
+            mu(i) = mean(yi);
+        end
+    
+        c = get_alg_color(alg, COL);
+        % 점만 (권장)
+        % plot(ax, xBase + offsets(k), mu, 'o', 'HandleVisibility','off');  % legend 지저분해지면 숨김
+    
+        % 선까지 연결하려면 아래로 교체
+        plot(ax, xBase + offsets(k), mu, '-x', 'HandleVisibility','off','MarkerEdgeColor',c, 'MarkerFaceColor',c, 'Color',c);
+    end
+
+    ylim([7 35])
+
 
     xlabel("Utility uncertainty");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    ax = gca;
 
-    legend(ax, categories(X.algorithm), 'Location','best');
-end
-
-function plot_errorbar_bySigma(T, spec, algs, yfield, ylab, ttl)
-    algs = string(algs);
-
-    % Slice data
-    X = T( T.a==spec.a & ismember(T.coord_sigma, spec.sigma) & T.alpha==spec.alpha ...
-         & ismember(T.algorithm, algs), :);
-    assert(height(X)>0, "No data found for plot: %s", ttl);
-
-    % Enforce ordering
-    sigmaOrder = spec.sigma(:)';
-    algOrder   = algs(:)';
-
-    X.coord_sigma = categorical(string(X.coord_sigma), ...
-                                string(sigmaOrder), 'Ordinal', true);
-    X.algorithm   = categorical(string(X.algorithm), ...
-                                algOrder, 'Ordinal', true);
-
-    % Prepare figure
-    figure('Name', ttl);
-    ax = axes(); hold(ax,'on');
-
-    % Slight horizontal offsets to avoid overlap
-    nAlg = numel(algOrder);
-    offsets = linspace(-0.15, 0.15, nAlg);
-
-    % x positions
-    xBase = 1:numel(sigmaOrder);
-
-    % Loop over algorithms
-    for k = 1:nAlg
-        alg = algOrder(k);
-        Xk = X(X.algorithm==alg, :);
-
-        mu  = nan(size(xBase));
-        err = nan(size(xBase));
-
-        for i = 1:numel(sigmaOrder)
-            Xi = Xk(Xk.coord_sigma==string(sigmaOrder(i)), yfield);
-            Xi = Xi.(yfield);
-            Xi = Xi(~isnan(Xi));
-
-            if isempty(Xi), continue; end
-
-            mu(i)  = mean(Xi);
-            % 95% confidence interval
-            err(i) = 1.96 * std(Xi) / sqrt(numel(Xi));
-        end
-
-        errorbar(ax, xBase + offsets(k), mu, err, ...
-            'o-', 'CapSize', 8, 'LineWidth', 1.8, ...
-            'DisplayName', alg);
+    yl = ylim(ax);
+    nG = numel(categories(X.xcat));
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', ...
+            'Color', [0.2 0.2 0.2], ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility','off');
     end
 
-    % Axes cosmetics
-    ax.XTick = xBase;
-    ax.XTickLabel = string(sigmaOrder);
-    xlabel("Utility uncertainty $\sigma$");
-    ylabel(ylab);
-    title(ttl);
-    grid(ax,'on');
-    legend(ax, 'Location','best');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
 end
 
-
-function plot_two_metric_alpha_box(T, spec, algs, y1, y1lab, y2lab, ttl)
-    % NOTE:
-    % y1  : cost or obj_norm (boxchart)
-    % y2  : ignored (we compute deviation frequency from n_dev)
-    % y2lab : label for deviation frequency axis
-
+function plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
+    global DISP COL
     algs = string(algs);
 
     X = T( T.a==spec.a & T.coord_sigma==spec.sigma & ismember(T.alpha, spec.alpha) ...
          & ismember(T.algorithm, algs), :);
     assert(height(X)>0, "No data found for plot: %s", ttl);
 
-    assert(ismember("n_dev", string(X.Properties.VariableNames)), ...
-        "'n_dev' column required for deviation frequency plot.");
-
-    % x-axis grouping
-    aOrder = sort(spec.alpha(:))';
-    X.xcat = categorical(string(X.alpha), string(aOrder), 'Ordinal', true);
+    % x-axis grouping (alpha order)
+    cOrder = sort(spec.alpha(:))';
+    X.xcat = categorical(string(X.alpha), string(cOrder), 'Ordinal', true);
 
     % stable algorithm order
     X.algorithm = categorical(string(X.algorithm), algs, 'Ordinal', true);
     X.algorithm = removecats(X.algorithm);
 
     figure('Name', ttl);
-    tl = tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
-
-    %% --------------------
-    % (1) cost / efficiency (boxchart)
-    % ---------------------
-    ax1 = nexttile(tl,1); hold(ax1,'on');
-    boxchart(ax1, X.xcat, X.(y1), 'GroupByColor', X.algorithm);
-    ylabel(ax1, y1lab);
-    title(ax1, ttl);
-    grid(ax1,'on');
-    legend(ax1, categories(X.algorithm), 'Location','best');
-
-    %% --------------------
-    % (2) deviation frequency (errorbar)
-    % ---------------------
-    ax2 = nexttile(tl,2); hold(ax2,'on');
+    ax = axes(); hold(ax,'on');
+    h = boxchart(ax, X.xcat, X.(yfield), 'GroupByColor', X.algorithm,'MarkerStyle','none');
+    apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
 
     nAlg = numel(algs);
-    offsets = linspace(-0.15, 0.15, nAlg);
-    xBase = 1:numel(aOrder);
-
+    offsets = linspace(-0.33, 0.33, nAlg);   % boxchart보다 조금 넓게/좁게 조절 가능
+    
+    xBase = 1:numel(cOrder);
+    
     for k = 1:nAlg
         alg = algs(k);
+        Xk = X(X.algorithm==alg, :);
+    
+        mu = nan(size(xBase));
+        for i = 1:numel(cOrder)
+            Xi = Xk(Xk.xcat==string(cOrder(i)), :);
+            yi = Xi.(yfield);
+            yi = yi(~isnan(yi));
+            if isempty(yi), continue; end
+            mu(i) = mean(yi);
+        end
+    
+        c = get_alg_color(alg, COL);
+        % 점만 (권장)
+        % plot(ax, xBase + offsets(k), mu, 'o', 'HandleVisibility','off');  % legend 지저분해지면 숨김
+    
+        % 선까지 연결하려면 아래로 교체
+        plot(ax, xBase + offsets(k), mu, '-*', 'HandleVisibility','off', 'MarkerEdgeColor',c, 'MarkerFaceColor', c, 'Color',c);
+    end
+    
+    yl = ylim(ax);
+    nG = numel(categories(X.xcat));
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', ...
+            'Color', [0.2 0.2 0.2], ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility','off');
+    end
+    ylim([7 35])
+
+    xlabel("confidence $\alpha$ [\%]");
+    ylabel(ylab);
+    title(ttl);
+    grid(ax,'on');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
+end
+
+
+function plot_errorbar_devfreq_byAlpha(T, spec, algs, ttl)
+    global DISP COL
+    algs = string(algs);
+
+    X = T( T.a==spec.a & T.coord_sigma==spec.sigma & ismember(T.alpha, spec.alpha) ...
+         & ismember(T.algorithm, algs), :);
+    assert(height(X)>0, "No data found for plot: %s", ttl);
+
+    assert(ismember("n_dev", string(X.Properties.VariableNames)) || ...
+           ismember("dev_rate", string(X.Properties.VariableNames)), ...
+        "Need 'n_dev' or 'dev_rate' for Deviation rate [\%] plot.");
+
+    % use dev_rate > 0 as event (matches your sigma-plot)
+    if ~ismember("dev_rate", string(X.Properties.VariableNames))
+        % fallback if only n_dev exists
+        X.dev_rate = double(X.n_dev > 0);
+    end
+
+    cOrder = spec.alpha(:)';
+    algOrder = algs(:)';
+
+    X.alpha     = categorical(string(X.alpha), string(cOrder), 'Ordinal', true);
+    X.algorithm = categorical(string(X.algorithm), algOrder, 'Ordinal', true);
+
+    figure('Name', ttl);
+    ax = axes(); hold(ax,'on');
+
+    nAlg = numel(algOrder);
+    offsets = linspace(-0.15, 0.15, nAlg);
+    xBase = 1:numel(cOrder);
+
+    for k = 1:nAlg
+        alg = algOrder(k);
         Xk = X(X.algorithm==alg, :);
 
         p  = nan(size(xBase));
         lo = nan(size(xBase));
         hi = nan(size(xBase));
 
-        for i = 1:numel(aOrder)
-            Xi = Xk(Xk.xcat==string(aOrder(i)), :);
+        for i = 1:numel(cOrder)
+            Xi = Xk(Xk.alpha==string(cOrder(i)), :);
             if height(Xi)==0, continue; end
 
-            yi = Xi.n_dev > 0;   % deviation occurred?
+            yi = (Xi.dev_rate > 0); % event
             n  = numel(yi);
             phat = mean(yi);
 
             % Wilson 95% CI
             z = 1.96;
-            denom = 1 + z^2/n;
+            denom  = 1 + z^2/n;
             center = (phat + z^2/(2*n)) / denom;
-            half = (z/denom) * sqrt((phat*(1-phat) + z^2/(4*n)) / n);
+            half   = (z/denom) * sqrt((phat*(1-phat) + z^2/(4*n)) / n);
 
             p(i)  = phat;
-            lo(i) = max(0, center - half);
-            hi(i) = min(1, center + half);
+            lo(i) = max(0, center - half/2);
+            hi(i) = min(1, center + half/2);
         end
 
-        errorbar(ax2, xBase + offsets(k), p, p-lo, hi-p, ...
+        c = COL(string(alg));
+        errorbar(ax, xBase + offsets(k), p, p-lo, hi-p, ...
             'o-', 'CapSize', 8, 'LineWidth', 1.8, ...
-            'DisplayName', alg);
+            'DisplayName', map_display_names(string(alg), DISP), 'Color', c);
     end
 
-    ax2.XTick = xBase;
-    ax2.XTickLabel = string(aOrder);
-    xlabel(ax2, "confidence $\alpha$ [\%]");
-    ylabel(ax2, y2lab);
-    ylim(ax2, [0 1]);
-    grid(ax2,'on');
-    legend(ax2, 'Location','best');
+    yl = ylim(ax);
+    nG = numel(xBase);
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', ...
+            'Color', [0.2 0.2 0.2], ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility','off');
+    end
+
+    ax.XTick = xBase;
+    ax.XTickLabel = string(cOrder);
+    xlabel("confidence $\alpha$ [\%]");
+    ylabel("Deviation rate [\%]");
+    title(ttl);
+    ylim([0 0.6]);
+    yl = ylim(ax);    
+    yt = ax.YTick;
+    ax.YTickLabel = compose('%.0f', 100*yt);
+    grid(ax,'on');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times','FontName','times');
 end
 
-
 function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
+    global DISP COL
     algs = string(algs);
 
     % Slice
@@ -507,7 +573,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
 
     % Need n_dev
     assert(ismember("dev_rate", string(X.Properties.VariableNames)), ...
-        "Column 'n_dev' is required for deviation frequency plot.");
+        "Column 'n_dev' is required for Deviation rate [\%] plot.");
 
     sigmaOrder = spec.sigma(:)';
     algOrder   = algs(:)';
@@ -548,139 +614,91 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
             half = (z/denom) * sqrt( (phat*(1-phat) + z^2/(4*n)) / n );
 
             p(i)  = phat;
-            lo(i) = max(0, center - half);
-            hi(i) = min(1, center + half);
+            lo(i) = max(0, center - half/2);
+            hi(i) = min(1, center + half/2);
         end
 
         % convert to symmetric error for errorbar
         errLow = p - lo;
         errHigh = hi - p;
 
+        c = COL(string(alg));
         errorbar(ax, xBase + offsets(k), p, errLow, errHigh, ...
             'o-', 'CapSize', 8, 'LineWidth', 1.8, ...
-            'DisplayName', alg);
+            'DisplayName', map_display_names(string(alg), DISP), 'Color', c);
+    end
+
+    yl = ylim(ax);
+    nG = numel(xBase);
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', ...
+            'Color', [0.2 0.2 0.2], ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility','off');
     end
 
     ax.XTick = xBase;
     ax.XTickLabel = string(sigmaOrder);
     xlabel("Utility uncertainty $\sigma$");
-    ylabel("Deviation frequency $\Pr(n_{\mathrm{dev}}>0)$");
+    ylabel("Deviation rate [\%]");
     title(ttl);
-    ylim([0 1]);
+    ylim([0 0.6]);
+    yl = ylim(ax);    
+    yt = ax.YTick;
+    ax.YTickLabel = compose('%.0f', 100*yt);
     grid(ax,'on');
-    legend(ax, 'Location','best');
+    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','best','Interpreter', 'latex','FontName','times');
 end
 
-function plot_conditional_cost_alpha_box(T, spec, algs, yfield, ylab, ttl)
-    % Shows 3 panels:
-    % (1) unconditional cost
-    % (2) cost | (n_dev > 0)
-    % (3) cost | (n_dev == 0)
-
-    algs = string(algs);
-
-    X = T( T.a==spec.a & T.coord_sigma==spec.sigma & ismember(T.alpha, spec.alpha) ...
-         & ismember(T.algorithm, algs), :);
-    assert(height(X)>0, "No data found for plot: %s", ttl);
-    assert(ismember("n_dev", string(X.Properties.VariableNames)), "'n_dev' required.");
-
-    % x-axis order
-    aOrder = sort(spec.alpha(:))';
-    X.xcat = categorical(string(X.alpha), string(aOrder), 'Ordinal', true);
-
-    % stable algorithm order
-    X.algorithm = categorical(string(X.algorithm), algs, 'Ordinal', true);
-    X.algorithm = removecats(X.algorithm);
-
-    figure('Name', ttl);
-    tl = tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
-
-    % -------- (1) unconditional
-    ax1 = nexttile(tl,1); hold(ax1,'on');
-    boxchart(ax1, X.xcat, X.(yfield), 'GroupByColor', X.algorithm);
-    ylabel(ax1, ylab);
-    title(ax1, ttl + " (unconditional)");
-    grid(ax1,'on');
-    legend(ax1, categories(X.algorithm), 'Location','best');
-
-    % -------- (2) conditional dev>0
-    ax2 = nexttile(tl,2); hold(ax2,'on');
-    Xp = X(X.n_dev > 0, :);
-    if height(Xp)==0
-        text(ax2, 0.1, 0.5, "No samples with n\_dev>0 in this slice.", 'Units','normalized');
-        axis(ax2,'off');
-    else
-        boxchart(ax2, Xp.xcat, Xp.(yfield), 'GroupByColor', Xp.algorithm);
-        ylabel(ax2, ylab);
-        title(ax2, "conditional: $n_{\mathrm{dev}}>0$");
-        grid(ax2,'on');
-        legend(ax2, categories(Xp.algorithm), 'Location','best');
-    end
-
-    % -------- (3) conditional dev==0
-    ax3 = nexttile(tl,3); hold(ax3,'on');
-    Xz = X(X.n_dev == 0, :);
-    if height(Xz)==0
-        text(ax3, 0.1, 0.5, "No samples with n\_dev=0 in this slice.", 'Units','normalized');
-        axis(ax3,'off');
-    else
-        boxchart(ax3, Xz.xcat, Xz.(yfield), 'GroupByColor', Xz.algorithm);
-        xlabel(ax3, "confidence $\alpha$ [\%]");
-        ylabel(ax3, ylab);
-        title(ax3, "conditional: $n_{\mathrm{dev}}=0$");
-        grid(ax3,'on');
-        legend(ax3, categories(Xz.algorithm), 'Location','best');
+function out = map_display_names(cats, DISP)
+    out = string(cats);
+    for i = 1:numel(out)
+        key = string(cats{i});
+        if isKey(DISP, key)
+            out(i) = DISP(key);
+        end
     end
 end
 
-function plot_conditional_cost_sigma_box(T, spec, algs, yfield, ylab, ttl)
-    algs = string(algs);
-
-    X = T( T.a==spec.a & ismember(T.coord_sigma, spec.sigma) & T.alpha==spec.alpha ...
-         & ismember(T.algorithm, algs), :);
-    assert(height(X)>0, "No data found for plot: %s", ttl);
-    assert(ismember("n_dev", string(X.Properties.VariableNames)), "'n_dev' required.");
-
-    sOrder = sort(spec.sigma(:))';
-    X.xcat = categorical(string(X.coord_sigma), string(sOrder), 'Ordinal', true);
-
-    X.algorithm = categorical(string(X.algorithm), algs, 'Ordinal', true);
-    X.algorithm = removecats(X.algorithm);
-
-    figure('Name', ttl);
-    tl = tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
-
-    ax1 = nexttile(tl,1); hold(ax1,'on');
-    boxchart(ax1, X.xcat, X.(yfield), 'GroupByColor', X.algorithm);
-    ylabel(ax1, ylab);
-    title(ax1, ttl + " (unconditional)");
-    grid(ax1,'on');
-    legend(ax1, categories(X.algorithm), 'Location','best');
-
-    ax2 = nexttile(tl,2); hold(ax2,'on');
-    Xp = X(X.n_dev > 0, :);
-    if height(Xp)==0
-        text(ax2, 0.1, 0.5, "No samples with n\_dev>0 in this slice.", 'Units','normalized');
-        axis(ax2,'off');
+function apply_fixed_colors_boxchart(h, algCats, COL)
+    % h can be scalar or array (one per group). Handle both.
+    if ~isscalar(h)
+        hs = h;
     else
-        boxchart(ax2, Xp.xcat, Xp.(yfield), 'GroupByColor', Xp.algorithm);
-        ylabel(ax2, ylab);
-        title(ax2, "conditional: $n_{\mathrm{dev}}>0$");
-        grid(ax2,'on');
-        legend(ax2, categories(Xp.algorithm), 'Location','best');
+        hs = h; % sometimes MATLAB returns scalar; still OK
     end
 
-    ax3 = nexttile(tl,3); hold(ax3,'on');
-    Xz = X(X.n_dev == 0, :);
-    if height(Xz)==0
-        text(ax3, 0.1, 0.5, "No samples with n\_dev=0 in this slice.", 'Units','normalized');
-        axis(ax3,'off');
+    % When grouped, MATLAB typically returns an array of BoxChart objects
+    % in the same order as categories(X.algorithm).
+    for i = 1:numel(hs)
+        key = string(algCats{i});
+        if isKey(COL, key)
+            c = COL(key);
+            try
+                hs(i).BoxFaceColor = c;
+            catch
+            end
+            try
+                hs(i).BoxEdgeColor = c;
+            catch
+            end
+            try
+                hs(i).WhiskerLineColor = c;
+            catch
+            end
+            try
+                hs(i).MedianLineColor = c;
+            catch
+            end
+        end
+    end
+end
+
+function c = get_alg_color(alg, COL)
+    key = string(alg);
+    if isKey(COL, key)
+        c = COL(key);
     else
-        boxchart(ax3, Xz.xcat, Xz.(yfield), 'GroupByColor', Xz.algorithm);
-        xlabel(ax3, "Utility uncertainty $\sigma$");
-        ylabel(ax3, ylab);
-        title(ax3, "conditional: $n_{\mathrm{dev}}=0$");
-        grid(ax3,'on');
-        legend(ax3, categories(Xz.algorithm), 'Location','best');
+        c = [0 0 0]; % fallback
     end
 end
