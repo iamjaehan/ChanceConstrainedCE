@@ -230,6 +230,10 @@ function run_mc_epoch_test(cfgE::MCEpochConfig; out_csv::String)
                 obj = J_coord
             end
 
+            if smode == CE_FULL
+                status = get(solver_detail, "ce_status", missing)
+            end
+
             push!(rows, (
                 mc = mc,
                 solver = string(smode),

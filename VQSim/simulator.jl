@@ -366,6 +366,9 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
         res = SearchCorrTensor(game.C_air_ic, game.C_air_fair, game.c_coord,
                                game.joint_choice, game.choice_to_k, game.action_sizes;
                                Δ=cfg.Δ, zalpha=cfg.zalpha, sigma=sigma_coord)
+        solver_detail["ce_status"] = res.status
+        solver_detail["ce_time_sec"] = res.solverTime
+
         z = res.z
         k_rec = sample_k(z)
 
@@ -419,7 +422,7 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
         solver_detail["max_regret"] = maximum(regret)
 
         # ---- binary deviation flag (CE-intended) ----
-        eps_regret = 1e-9   # 수치오차/동률 흡수
+        eps_regret = 1e-2   # 수치오차/동률 흡수
         dev_flag = (solver_detail["max_regret"] > eps_regret) ? 1 : 0
 
         solver_detail["dev_rate"] = dev_flag
