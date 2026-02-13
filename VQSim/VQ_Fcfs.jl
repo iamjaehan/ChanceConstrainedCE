@@ -29,3 +29,13 @@ function select_fcfs(elig::Vector{Int}, flights, k::Int; rng::AbstractRNG=Random
 
     return out[1:k]
 end
+
+# function select_fcfs(elig::Vector{Int}, flights, k::Int; rng::AbstractRNG=Random.default_rng())
+#     k <= 0 && return Int[]
+#     k = min(k, length(elig))
+#     k == 0 && return Int[]
+
+#     tmp = copy(elig)        # 원본 보존
+#     shuffle!(rng, tmp)
+#     return tmp[1:k]
+# end

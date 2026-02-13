@@ -12,7 +12,7 @@ using Printf
 using CSV
 using DataFrames
 
-include("simulator.jl")  # assumes SimConfig, SolverMode, SigmaMode, run_simulation are defined
+# include("simulator.jl")  # assumes SimConfig, SolverMode, SigmaMode, run_simulation are defined
 
 # -------------------------
 # Experiment sweep spec
@@ -219,26 +219,26 @@ sweep = MCSweep(
 )
 
 sweep = MCSweep(
-    seeds = collect(1:2),
+    seeds = rand(1:10000,100),
     n_reps = 1,
 
-    # solver_modes = [
-    #     GREEDY_CENTRALIZED,
-    #     AGG_ORACLE_FCFS,
-    #     CE_NAIVE,
-    #     CE_FULL,
-    #     RRCE_PNE
-    # ],
     solver_modes = [
         GREEDY_CENTRALIZED,
         AGG_ORACLE_FCFS,
         CE_NAIVE,
+        CE_FULL,
         RRCE_PNE
     ],
+    # solver_modes = [
+    #     GREEDY_CENTRALIZED,
+    #     AGG_ORACLE_FCFS,
+    #     CE_NAIVE,
+    #     RRCE_PNE
+    # ],
 
     # single sigma case (same for coordinator + realization)
-    coord_sigmas = [0.0],
-    real_sigmas  = [0.0],
+    coord_sigmas = [100.0],
+    real_sigmas  = [100.0],
 
     enable_deviation = true,
     # csv_path = "schedule/flight_schedule_1h.csv",
@@ -248,8 +248,10 @@ sweep = MCSweep(
     lambda_fair = 1.0,
     rho_release = 0.0,
     Δ = 1e12,
-    α = 0.95
+    α = 0.9
 )
+
+println(sweep.seeds)
 
 summary_df, epoch_df = run_mc(sweep; outdir="mc_out")
 

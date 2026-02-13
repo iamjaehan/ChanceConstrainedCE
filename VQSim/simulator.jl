@@ -131,6 +131,13 @@ function select_fcfs(elig::Vector{Int}, flights, k::Int; rng::AbstractRNG=Random
         i = j
     end
     return out[1:k]
+    # k <= 0 && return Int[]
+    # k = min(k, length(elig))
+    # k == 0 && return Int[]
+
+    # tmp = copy(elig)        # 원본 보존
+    # shuffle!(rng, tmp)
+    # return tmp[1:k]
 end
 
 # ----------------------------
@@ -261,6 +268,12 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
     t0 = time()
     pushed_real = Int[]
     pushed_rec  = Int[]
+    
+    temp_game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
+            actions_by_player, joint_pushed, joint_choice, params; n_runways=params.n_runways)
+    sigma_coord = build_sigma(cfg, cfg.coord_sigma_mode, cfg.coord_sigma_scalar, cfg.coord_sigma_vec, size(temp_game.C_air_ic,1))
+    temp_pne_ks = find_pne_set(temp_game.C_air_ic, temp_game.joint_choice, temp_game.choice_to_k, temp_game.action_sizes;
+                              tol=1e-3, zalpha=cfg.zalpha, sigma=sigma_coord)
 
     # --- Greedy / FCFS도 game 텐서를 만들어서 동일한 (J_coord + fairness-gap) 기준 적용 ---
     if cfg.solver_mode == GREEDY_CENTRALIZED
@@ -282,9 +295,17 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
         t1 = time()
         return pushed_real, (t1 - t0), solver_detail
 
-    elseif cfg.solver_mode == AGG_ORACLE_FCFS
+    elseif cfg.solver_mode == AGG_ORACLE_FCFS ||
+        (cfg.solver_mode == CE_FULL && n_active >= 8) || (cfg.solver_mode == RRCE_PNE && isempty(temp_pne_ks))
         game = build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
             actions_by_player, joint_pushed, joint_choice, params; n_runways=params.n_runways)
+
+        if cfg.solver_mode == CE_FULL
+            println("CE_FULL cannot handle. Rolling back to fcfs.")
+        end
+        if cfg.solver_mode == RRCE_PNE
+            println("RRCE_PNE failed. Rolling back to fcfs.")
+        end
 
         # 1) oracle chooses k by (J_coord min subject to fairness-gap<=Δ)
         k_oracle, fair_ok, gap = pick_k_min_coord_with_fairness(game.c_coord, game.C_air_fair, cfg.Δ)
@@ -379,6 +400,7 @@ function solve_epoch(cfg::SimConfig, rng::AbstractRNG,
 
         if isempty(pne_ks)
             solver_detail["fallback"] = "no_pne_push_none"
+            println("WARN: NO PNE FOUND")
             pushed_real = Int[]
             pushed_rec  = Int[]
 

@@ -17,13 +17,13 @@ params = VS.SimParams(2, [2, 2])       # 2 runways, 1 departure per epoch (mu)
 T_sim = 16                           # Number of epochs (16 for 60 minutes)
 
 lambda_fair = 1.0
-rho_release = 0.1
+rho_release = 0.0
 max_subset_size = 1024
 
 # sigma = fill(500.0, length(flights))
-sigma = fill(0.0, length(flights)) # Airline action uncertainty
+sigma = fill(1.0, length(flights)) # Airline action uncertainty
 α = 0.9 # Credibility parameter (α = 0.9 → 90% certainty)
-Δ = 1e12
+Δ = 1
 zalpha = quantile(Normal(), α)
 
 state = VS.init_state(params, length(flights))
@@ -79,62 +79,21 @@ for step in 1:T_sim
     # VC.evolve_state!(state, pushed_best, flights; mu=params.mu)
 
     """ CE-based solver """
-    # 1) build tensors for this epoch
-    game = correlated.build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
-    actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
-
-    # 2) solve CE (standard CE + epigraph)
-    res = correlated.SearchCorrTensor(game.C_air_ic, game.C_air_fair, game.c_coord, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=Δ, zalpha = zalpha, sigma = sigma)
-    z = res.z   # length K
-
-    # 3) sample recommendation
-    println(round.(z, digits=1))
-    k_rec = correlated.sample_k(z)
-    pushed_rec = game.joint_pushed[k_rec]
-
-    # 4) Actual choice
-    C_air_noisy = copy(game.C_air_ic)
-    for i in 1:size(C_air_noisy,1)
-        C_air_noisy[i, :] .+= sigma[i] .* randn(size(C_air_noisy,2))
-    end
-
-    k_real = correlated.realized_choice_conditional_BR(
-        C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
-    )
-    pushed_real = game.joint_pushed[k_real]
-    println(length(pushed_real),"/",sum(length, values(active_by_airline))," aircraft pushed.")
-
-    # 5) evolve
-    # VC.evolve_state!(state, pushed_rec, flights; mu=params.mu)
-    VC.evolve_state!(state, pushed_real, flights; mu=params.mu)
-
-    """ Brute - RRCE solver"""
-    # #build tensors for this epoch
+    # # 1) build tensors for this epoch
     # game = correlated.build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
     # actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
 
-    # # Find PNE set
-    # pne_ks = correlated.find_pne_set(game.C_air_ic, game.joint_choice, game.choice_to_k, game.action_sizes; tol=1e-3, zalpha = zalpha, sigma = sigma)
-    # println("Number of pnes: ",length(pne_ks))   
-    
-    # # Debugger
-    # # out = max_regret_per_k(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=0.0)
-    # # summarize_regrets(out; tol=1e-7, top=10)
+    # # 2) solve CE (standard CE + epigraph)
+    # res = correlated.SearchCorrTensor(game.C_air_ic, game.C_air_fair, game.c_coord, game.joint_choice, game.choice_to_k, game.action_sizes; Δ=Δ, zalpha = zalpha, sigma = sigma)
+    # z = res.z   # length K
 
-    # if isempty(pne_ks)
-    #     println("No PNE found this epoch")
-    # else
-    #     # RRCE-like mixing
-    #     rr = correlated.solve_rrce_over_pne(game.C_air_ic, pne_ks, length(game.joint_pushed); Δ=Δ, C_air_fair = game.C_air_fair, c_coord = game.c_coord)
-    #     z = rr.z_use
-    #     temp = round.(z, digits=2)
-    #     println(temp[abs.(temp) .> 1e-12])
-    #     k_rec = correlated.sample_k(z)
-    #     pushed_rec = game.joint_pushed[k_rec]
-    # end
+    # # 3) sample recommendation
+    # println(round.(z, digits=1))
+    # k_rec = correlated.sample_k(z)
+    # pushed_rec = game.joint_pushed[k_rec]
 
-    # # 노이즈 일탈(기존 그대로)
-    # C_air_noisy = copy(game.C_air)
+    # # 4) Actual choice
+    # C_air_noisy = copy(game.C_air_ic)
     # for i in 1:size(C_air_noisy,1)
     #     C_air_noisy[i, :] .+= sigma[i] .* randn(size(C_air_noisy,2))
     # end
@@ -143,11 +102,52 @@ for step in 1:T_sim
     #     C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
     # )
     # pushed_real = game.joint_pushed[k_real]
-    # # println(active_by_airline)
-    # # println(pushed_real)
     # println(length(pushed_real),"/",sum(length, values(active_by_airline))," aircraft pushed.")
 
+    # # 5) evolve
+    # # VC.evolve_state!(state, pushed_rec, flights; mu=params.mu)
     # VC.evolve_state!(state, pushed_real, flights; mu=params.mu)
+
+    # """ Brute - RRCE solver"""
+    #build tensors for this epoch
+    game = correlated.build_epoch_game_tensors(state, flights, active_airlines, active_by_airline,
+    actions_by_player, joint_pushed, joint_choice, params; n_runways = 2)
+
+    # Find PNE set
+    pne_ks = correlated.find_pne_set(game.C_air_ic, game.joint_choice, game.choice_to_k, game.action_sizes; tol=1e-3, zalpha = zalpha, sigma = sigma)
+    println("Number of pnes: ",length(pne_ks))   
+    
+    # Debugger
+    out = max_regret_per_k(game.C_air, game.joint_choice, game.choice_to_k, game.action_sizes; tol=0.0)
+    summarize_regrets(out; tol=1e-7, top=10)
+
+    if isempty(pne_ks)
+        println("No PNE found this epoch")
+    else
+        # RRCE-like mixing
+        rr = correlated.solve_rrce_over_pne(game.C_air_ic, pne_ks, length(game.joint_pushed); Δ=Δ, C_air_fair = game.C_air_fair, c_coord = game.c_coord)
+        z = rr.z_use
+        temp = round.(z, digits=2)
+        println(temp[abs.(temp) .> 1e-12])
+        k_rec = correlated.sample_k(z)
+        pushed_rec = game.joint_pushed[k_rec]
+    end
+
+    # 노이즈 일탈(기존 그대로)
+    C_air_noisy = copy(game.C_air)
+    for i in 1:size(C_air_noisy,1)
+        C_air_noisy[i, :] .+= sigma[i] .* randn(size(C_air_noisy,2))
+    end
+
+    k_real = correlated.realized_choice_conditional_BR(
+        C_air_noisy, game.joint_choice, game.choice_to_k, game.action_sizes, k_rec
+    )
+    pushed_real = game.joint_pushed[k_real]
+    # println(active_by_airline)
+    # println(pushed_real)
+    println(length(pushed_real),"/",sum(length, values(active_by_airline))," aircraft pushed.")
+
+    VC.evolve_state!(state, pushed_real, flights; mu=params.mu)
 
     """ Aggregate-oracle + Airline FCFS """
     # # 1) Coordinator picks best joint action by J_coord (oracle-like), but uses it only for airline quotas
