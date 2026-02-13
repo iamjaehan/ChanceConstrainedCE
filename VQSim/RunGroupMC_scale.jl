@@ -23,7 +23,7 @@ cfgE = MCEpochConfig(
     real_sigma_vec = Float64[],
     N_mc = 100,
     base_seed = overall_seed,
-    solver_modes = [GREEDY_CENTRALIZED, AGG_ORACLE_FCFS, CE_FULL, CE_NAIVE, RRCE_PNE]
+    solver_modes = [RRCE_PNE]
 )
 
 println("Running test case 1")
@@ -36,5 +36,15 @@ df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_11a_0s_90c.csv")
 
 ### Test case 3 ### 12 / 0 / 0.9
 cfgE.B0_total = 12
-println("Running test case 2")
-df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_11a_0s_90c.csv")
+println("Running test case 3")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_12a_0s_90c.csv")
+
+### Test case 4 ### 13 / 0 / 0.9
+cfgE.B0_total = 13
+println("Running test case 4")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_13a_0s_90c.csv")
+
+### Test case 5 ### 14 / 0 / 0.9
+cfgE.B0_total = 14
+println("Running test case 5")
+df = run_mc_epoch_test(cfgE; out_csv="mc_epoch_results_14a_0s_90c.csv")
