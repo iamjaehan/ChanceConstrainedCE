@@ -110,6 +110,7 @@ if filterCEFullNoProgress
 
     allRows = allRows(~(isCEfull & badStatus), :);
 end
+allRows.wall_ms = allRows.wall_ms / 1000;
 
 %% ---------------------------
 % Algorithm labels (your actual solver strings)
@@ -125,9 +126,9 @@ global DISP
 DISP = containers.Map();
 DISP("GREEDY_CENTRALIZED") = "CENT";
 DISP("AGG_ORACLE_FCFS")    = "FCFS";
-DISP("CE_FULL")            = "CE_FULL";
-DISP("CE_NAIVE")           = "CE_NAIVE";
-DISP("RRCE_PNE")           = "CE_RRCE (ours)";
+DISP("CE_FULL")            = "Full-CCCE";
+DISP("CE_NAIVE")           = "RRCE-Nominal";
+DISP("RRCE_PNE")           = "RRCE-CCCE";
 
 % ---- Fixed colors per algorithm (RGB in [0,1]) ----
 global COL
@@ -186,11 +187,20 @@ end
 % alg: CE_FULL, RRCE_PNE
 % x: a, y: wall_ms
 % ============================================================
-plot_box_byA( ...
-    allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
-    [ALG.CE_FULL, ALG.RRCE_PNE], ...
-    "wall_ms", "Computation time [ms] (log)", ...
-    "");
+% plot_box_byA( ...
+%     allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
+%     [ALG.CE_FULL, ALG.RRCE_PNE], ...
+%     "wall_ms", "Computation time [ms] (log)", ...
+%     "");
+% exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
+
+plot_scalability_overlay( ...
+    allRows, ...
+    struct("a",4:14,"sigma",0,"alpha",90), ...
+    ALG.CE_FULL, ALG.RRCE_PNE, ...
+    "wall_ms", "Computation time [s] (log)", "" ...
+);
+text(7,400,"Epoch duration (4 min)",'FontWeight','bold')
 exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
 
 %% ============================================================
@@ -204,7 +214,7 @@ algs2(algs2 == ALG.CE_NAIVE) = [];
 plot_box_byA2( ...
     allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
     algs2, ...
-    "obj", "cost [min]", ...
+    "obj", "Cost [min]", ...
     "");
 exportgraphics(gcf, "2_OverallCost.pdf","Resolution",300);
 
@@ -224,17 +234,17 @@ exportgraphics(gcf, "3_devfreq_uncertainty.pdf","Resolution",300);
 plot_box_bySigma( ...
     allRows, struct("a",6, "sigma",[0 5 20 45], "alpha",90), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "cost [min]", ...
+    "obj", "Cost [min]", ...
     "");
 exportgraphics(gcf, "4_eff_uncertainty.pdf","Resolution",300);
 
 %% ============================================================
 % 5) Efficiency vs confidence (alpha sweep)  [separate figure]
 % ============================================================
-plot_box_byAlpha( ...
+temp = plot_box_byAlpha( ...
     allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "cost [min]", ...
+    "obj", "Cost [min]", ...
     "");
 exportgraphics(gcf, "eff_confidence.pdf","Resolution",300);
 
@@ -284,10 +294,11 @@ function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
     apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
 
 
-    xlabel("aircraft count (a)");
+    xlabel("Number of eligible aircraft per epoch");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    ax.XGrid = 'off';
     yline(240000)
 
     yl = ylim(ax);
@@ -326,10 +337,11 @@ function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
     h = boxchart(ax, X.xcat, (X.(yfield)), 'GroupByColor', X.algorithm,'MarkerStyle','none');
     apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
 
-    xlabel("aircraft count (a)");
+    xlabel("Number of eligible aircraft per epoch");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    ax.XGrid = 'off';
     
     yl = ylim(ax);
     nG = numel(categories(X.xcat));
@@ -395,10 +407,11 @@ function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
     ylim([7 35])
 
 
-    xlabel("Utility uncertainty");
+    xlabel("Utility uncertainty $\sigma$ [minutes]");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    ax.XGrid = 'off';
     ax = gca;
 
     yl = ylim(ax);
@@ -413,7 +426,7 @@ function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
     legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times');
 end
 
-function plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
+function X = plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
     global DISP COL
     algs = string(algs);
 
@@ -444,6 +457,7 @@ function plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
         Xk = X(X.algorithm==alg, :);
     
         mu = nan(size(xBase));
+        length(cOrder)
         for i = 1:numel(cOrder)
             Xi = Xk(Xk.xcat==string(cOrder(i)), :);
             yi = Xi.(yfield);
@@ -470,10 +484,11 @@ function plot_box_byAlpha(T, spec, algs, yfield, ylab, ttl)
     end
     ylim([7 35])
 
-    xlabel("confidence $\alpha$ [\%]");
+    xlabel("Confidence level $\alpha$ [\%]");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
+    ax.XGrid = 'off';
     legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times');
 end
 
@@ -526,7 +541,7 @@ function plot_errorbar_devfreq_byAlpha(T, spec, algs, ttl)
             phat = mean(yi);
 
             % Wilson 95% CI
-            z = 1.96;
+            z = 1.645;
             denom  = 1 + z^2/n;
             center = (phat + z^2/(2*n)) / denom;
             half   = (z/denom) * sqrt((phat*(1-phat) + z^2/(4*n)) / n);
@@ -553,7 +568,7 @@ function plot_errorbar_devfreq_byAlpha(T, spec, algs, ttl)
 
     ax.XTick = xBase;
     ax.XTickLabel = string(cOrder);
-    xlabel("confidence $\alpha$ [\%]");
+    xlabel("Confidence level $\alpha$ [\%]");
     ylabel("Deviation rate [\%]");
     title(ttl);
     ylim([0 0.6]);
@@ -561,6 +576,7 @@ function plot_errorbar_devfreq_byAlpha(T, spec, algs, ttl)
     yt = ax.YTick;
     ax.YTickLabel = compose('%.0f', 100*yt);
     grid(ax,'on');
+    ax.XGrid = 'off';
     legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northeast','Interpreter', 'latex','FontName','times','FontName','times');
 end
 
@@ -610,7 +626,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
             phat = mean(yi);
 
             % Wilson 95% CI (robust for small n / extremes)
-            z = 1.96;
+            z = 1.645;
             denom = 1 + z^2/n;
             center = (phat + z^2/(2*n)) / denom;
             half = (z/denom) * sqrt( (phat*(1-phat) + z^2/(4*n)) / n );
@@ -641,7 +657,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
 
     ax.XTick = xBase;
     ax.XTickLabel = string(sigmaOrder);
-    xlabel("Utility uncertainty $\sigma$");
+    xlabel("Utility uncertainty $\sigma$ [minutes]");
     ylabel("Deviation rate [\%]");
     title(ttl);
     ylim([0 0.6]);
@@ -703,4 +719,63 @@ function c = get_alg_color(alg, COL)
     else
         c = [0 0 0]; % fallback
     end
+end
+
+function plot_scalability_overlay(T, spec, alg_ce, alg_rr, yfield, ylab, ttl)
+    global DISP COL
+
+    aOrder = sort(spec.a(:))';
+    aCats  = categorical(string(aOrder), string(aOrder), 'Ordinal', true);
+
+    X = T( ismember(T.a, spec.a) & T.coord_sigma==spec.sigma & T.alpha==spec.alpha ...
+         & ismember(T.algorithm, [alg_ce, alg_rr]), :);
+    assert(height(X)>0, "No data for scalability overlay.");
+
+    % Make a categorical x with all a shown (even if data missing)
+    X.xcat = categorical(string(X.a), string(aOrder), 'Ordinal', true);
+
+    figure('Name', ttl);
+    ax = axes(); hold(ax,'on');
+
+    % --- CE_FULL (only where it exists) ---
+    Xce = X(string(X.algorithm)==string(alg_ce), :);
+    if height(Xce) > 0
+        hce = boxchart(ax, Xce.xcat, Xce.(yfield), 'MarkerStyle','none');
+        c = COL(string(alg_ce));
+        try hce.BoxFaceColor = c; end
+        try hce.BoxEdgeColor = c; end
+        try hce.WhiskerLineColor = c; end
+        try hce.MedianLineColor = c; end
+        hce.DisplayName = DISP(string(alg_ce));
+    end
+
+    % --- RRCE_PNE (includes extra a=10..13) ---
+    Xrr = X(string(X.algorithm)==string(alg_rr), :);
+    if height(Xrr) > 0
+        hrr = boxchart(ax, Xrr.xcat, Xrr.(yfield), 'MarkerStyle','none');
+        c = COL(string(alg_rr));
+        try hrr.BoxFaceColor = c; end
+        try hrr.BoxEdgeColor = c; end
+        try hrr.WhiskerLineColor = c; end
+        try hrr.MedianLineColor = c; end
+        hrr.DisplayName = DISP(string(alg_rr));
+    end
+
+    xlabel("Number of eligible aircraft per epoch");
+    ylabel(ylab);
+    title(ttl);
+    grid(ax,'on');
+    ax.XGrid = 'off';
+
+    % separators
+    nG = numel(categories(aCats));
+    for i = 1:(nG-1)
+        xline(ax, i+0.5, ':', 'Color',[0.2 0.2 0.2], 'LineWidth',1.8, 'HandleVisibility','off');
+    end
+
+    % your existing styling
+    yline(ax, 240, 'HandleVisibility','off','LineWidth',2,'LineStyle','-.');
+    ax.YScale = 'log';
+
+    legend(ax, 'Location','northwest','Interpreter','latex','FontName','times');
 end

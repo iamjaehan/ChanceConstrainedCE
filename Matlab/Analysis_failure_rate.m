@@ -270,7 +270,7 @@ enablePnePlots = true;
 
 if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
 
-    z = 1.96;
+    z = 1.645;
 
     % ------------------------------------------------------------
     % (1) vs a : sigma=0, alpha=90
@@ -314,9 +314,9 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     ax.YTickLabel = compose('%.0f', 100*yt);
 
     ax.XTick = x; ax.XTickLabel = xlab;
-    xlabel(ax, "aircraft count (a)");
+    xlabel(ax, "Aircraft count (a)");
     grid(ax,'on');
-    legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northeast');
+    legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northwest');
 
     exportgraphics(gcf, "pne_ac.pdf","Resolution",300);
 
@@ -454,7 +454,7 @@ function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
     ax = axes(); hold(ax,'on');
     boxchart(ax, X.xcat, log(X.(yfield)), 'GroupByColor', X.algorithm);
 
-    xlabel("aircraft count (a)");
+    xlabel("Aircraft count (a)");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
