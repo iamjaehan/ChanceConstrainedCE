@@ -22,7 +22,12 @@ for t = 0:(T-1)
 
     % number of departures scheduled at time t
     % Poisson is standard for departure modeling
-    n_dep = poissrnd(avg_dep_rate * delta_t);
+    % n_dep = poissrnd(avg_dep_rate * delta_t);
+    lambda = avg_dep_rate * delta_t;
+    base = floor(lambda);
+    p_up = lambda - base;
+    n_dep = base + (rand < p_up);
+
 
     for k = 1:n_dep
 

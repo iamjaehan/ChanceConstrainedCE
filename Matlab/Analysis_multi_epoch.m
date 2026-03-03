@@ -104,7 +104,7 @@ for i = 1:numel(algOrder)
 end
 
 xlabel("Algorithm");
-ylabel("Total coordinator cost [min]");
+ylabel("Total delay cost");
 % title("Multi-epoch total objective comparison");
 grid(ax,'on');
 ax.XGrid = 'off';

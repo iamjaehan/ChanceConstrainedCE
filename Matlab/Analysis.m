@@ -127,8 +127,8 @@ DISP = containers.Map();
 DISP("GREEDY_CENTRALIZED") = "CENT";
 DISP("AGG_ORACLE_FCFS")    = "FCFS";
 DISP("CE_FULL")            = "Full-CCCE";
-DISP("CE_NAIVE")           = "RRCE-Nominal";
-DISP("RRCE_PNE")           = "RRCE-CCCE";
+DISP("CE_NAIVE")           = "RR-Nominal";
+DISP("RRCE_PNE")           = "RR-CCCE";
 
 % ---- Fixed colors per algorithm (RGB in [0,1]) ----
 global COL
@@ -201,6 +201,7 @@ plot_scalability_overlay( ...
     "wall_ms", "Computation time [s] (log)", "" ...
 );
 text(7,400,"Epoch duration (4 min)",'FontWeight','bold')
+set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
 
 %% ============================================================
@@ -214,8 +215,9 @@ algs2(algs2 == ALG.CE_NAIVE) = [];
 plot_box_byA2( ...
     allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
     algs2, ...
-    "obj", "Cost [min]", ...
+    "obj", "Delay Cost", ...
     "");
+set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "2_OverallCost.pdf","Resolution",300);
 
 %% ==========
@@ -225,6 +227,7 @@ plot_errorbar_devfreq_bySigma( ...
     allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
     "");
+set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "3_devfreq_uncertainty.pdf","Resolution",300);
 
 %% ============================================================
@@ -234,8 +237,9 @@ exportgraphics(gcf, "3_devfreq_uncertainty.pdf","Resolution",300);
 plot_box_bySigma( ...
     allRows, struct("a",6, "sigma",[0 5 20 45], "alpha",90), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "Cost [min]", ...
+    "obj", "Delay Cost", ...
     "");
+set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "4_eff_uncertainty.pdf","Resolution",300);
 
 %% ============================================================
@@ -244,8 +248,9 @@ exportgraphics(gcf, "4_eff_uncertainty.pdf","Resolution",300);
 temp = plot_box_byAlpha( ...
     allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "Cost [min]", ...
+    "obj", "Delay Cost", ...
     "");
+set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "eff_confidence.pdf","Resolution",300);
 
 %% ============================================================
@@ -255,6 +260,7 @@ plot_errorbar_devfreq_byAlpha( ...
     allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
     "");
+set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "devfreq_confidence.pdf","Resolution",300);
 
 %% ============================================================
@@ -270,50 +276,6 @@ function meta = parse_case_from_filename(fname)
     meta.a     = str2double(m.a);
     meta.sigma = str2double(m.s);
     meta.alpha = str2double(m.c);
-end
-
-function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
-    global DISP COL
-    algs = string(algs);
-
-    X = T( ismember(T.a, spec.a) & T.coord_sigma==spec.sigma & T.alpha==spec.alpha ...
-         & ismember(T.algorithm, algs), :);
-    assert(height(X)>0, "No data found for plot: %s", ttl);
-
-    % x-axis grouping
-    aOrder = sort(spec.a(:))';
-    X.xcat = categorical(string(X.a), string(aOrder), 'Ordinal', true);
-
-    % FIX: enforce stable algorithm order for GroupByColor
-    X.algorithm = categorical(string(X.algorithm), algs, 'Ordinal', true);
-    X.algorithm = removecats(X.algorithm);
-
-    figure('Name', ttl);
-    ax = axes(); hold(ax,'on');
-    h = boxchart(ax, X.xcat, X.(yfield), 'GroupByColor', X.algorithm, 'MarkerStyle','none');
-    apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
-
-
-    xlabel("Number of eligible aircraft per epoch");
-    ylabel(ylab);
-    title(ttl);
-    grid(ax,'on');
-    ax.XGrid = 'off';
-    yline(240000)
-
-    yl = ylim(ax);
-    nG = numel(categories(X.xcat));
-    for i = 1:(nG-1)
-        xline(ax, i+0.5, ':', ...
-            'Color', [0.2 0.2 0.2], ...
-            'LineWidth', 1.8, ...
-            'HandleVisibility','off');
-    end
-
-    ax.YScale = 'log';
-
-    % FIX: legend must match categories actually used
-    legend(ax, map_display_names(categories(X.algorithm), DISP), 'Location','northwest','Interpreter', 'latex','FontName','times');
 end
 
 function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
@@ -336,6 +298,15 @@ function plot_box_byA2(T, spec, algs, yfield, ylab, ttl)
     ax = axes(); hold(ax,'on');
     h = boxchart(ax, X.xcat, (X.(yfield)), 'GroupByColor', X.algorithm,'MarkerStyle','none');
     apply_fixed_colors_boxchart(h, categories(X.algorithm), COL);
+
+    algCats = categories(X.algorithm);
+    nGroups = numel(algCats);
+    
+    for iG = 1:nGroups
+        alg = string(algCats{iG});
+        mask = (X.algorithm == algCats{iG});
+        overlay_group_median_star(ax, X.xcat(mask), X.(yfield)(mask), nGroups, iG, COL(alg));
+    end
 
     xlabel("Number of eligible aircraft per epoch");
     ylabel(ylab);
@@ -407,7 +378,7 @@ function plot_box_bySigma(T, spec, algs, yfield, ylab, ttl)
     ylim([7 35])
 
 
-    xlabel("Utility uncertainty $\sigma$ [minutes]");
+    xlabel("Utility uncertainty $\sigma$ ");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
@@ -657,7 +628,7 @@ function plot_errorbar_devfreq_bySigma(T, spec, algs, ttl)
 
     ax.XTick = xBase;
     ax.XTickLabel = string(sigmaOrder);
-    xlabel("Utility uncertainty $\sigma$ [minutes]");
+    xlabel("Utility uncertainty $\sigma$");
     ylabel("Deviation rate [\%]");
     title(ttl);
     ylim([0 0.6]);
@@ -749,6 +720,13 @@ function plot_scalability_overlay(T, spec, alg_ce, alg_rr, yfield, ylab, ttl)
         hce.DisplayName = DISP(string(alg_ce));
     end
 
+    [g, xlev] = findgroups(Xce.xcat);
+    med = splitapply(@median, Xce.(yfield), g);
+    plot(ax, double(xlev), med, 'o', 'MarkerSize', 5, 'LineWidth', 1.4, ...
+         'Color', COL(string(alg_ce)), 'HandleVisibility','off');
+
+    hold on
+
     % --- RRCE_PNE (includes extra a=10..13) ---
     Xrr = X(string(X.algorithm)==string(alg_rr), :);
     if height(Xrr) > 0
@@ -760,6 +738,11 @@ function plot_scalability_overlay(T, spec, alg_ce, alg_rr, yfield, ylab, ttl)
         try hrr.MedianLineColor = c; end
         hrr.DisplayName = DISP(string(alg_rr));
     end
+
+    [g, xlev] = findgroups(Xrr.xcat);
+    med = splitapply(@median, Xrr.(yfield), g);
+    plot(ax, double(xlev), med, 'o', 'MarkerSize', 5, 'LineWidth', 1.4, ...
+         'Color', COL(string(alg_rr)), 'HandleVisibility','off');
 
     xlabel("Number of eligible aircraft per epoch");
     ylabel(ylab);
@@ -778,4 +761,25 @@ function plot_scalability_overlay(T, spec, alg_ce, alg_rr, yfield, ylab, ttl)
     ax.YScale = 'log';
 
     legend(ax, 'Location','northwest','Interpreter','latex','FontName','times');
+end
+
+function overlay_group_median_star(ax, xcat, y, nGroups, iGroup, c)
+    % Overlay median as a star marker (keep existing median line)
+    % xcat: categorical (Ordinal recommended)
+    % nGroups: number of groups in GroupByColor
+    % iGroup:  1..nGroups (order consistent with categories used in GroupByColor)
+    % c:       RGB color for the star marker (e.g., COL(alg))
+
+    dx = 0.372 * ( (2*iGroup - (nGroups+1)) / max(1,(nGroups-1)) ); % symmetric offsets
+
+    % median per x category
+    [g, xlev] = findgroups(xcat);
+    med = splitapply(@median, y, g);
+
+    xCenters = double(xlev) + dx;
+
+    plot(ax, xCenters, med, 'o', ...
+        'MarkerSize', 5, 'LineWidth', 1.4, ...
+        'Color', c, ...
+        'HandleVisibility','off');
 end

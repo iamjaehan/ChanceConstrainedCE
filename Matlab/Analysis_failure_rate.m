@@ -314,9 +314,10 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     ax.YTickLabel = compose('%.0f', 100*yt);
 
     ax.XTick = x; ax.XTickLabel = xlab;
-    xlabel(ax, "Aircraft count (a)");
+    xlabel(ax, "Number of eligible aircraft per epoch");
     grid(ax,'on');
     legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northwest');
+    set(gcf,'Position',[1000 818 560  280])
 
     exportgraphics(gcf, "pne_ac.pdf","Resolution",300);
 
@@ -365,6 +366,7 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     xlabel(ax, "Utility uncertainty $\sigma$");
     grid(ax,'on');
     legend(ax, {"Average \#PNE","Failure rate"}, 'Location','northeast');
+    set(gcf,'Position',[1000 818 560  280])
 
     exportgraphics(gcf, "pne_sigma.pdf","Resolution",300);
 
@@ -413,6 +415,7 @@ if exist("pneStats","var") && enablePnePlots && height(pneStats)>0
     yl = ylim(ax);    
     yt = ax.YTick;
     ax.YTickLabel = compose('%.0f', 100*yt);
+    set(gcf,'Position',[1000 818 560  280])
 
     exportgraphics(gcf, "pne_alpha.pdf","Resolution",300);
 
@@ -454,7 +457,7 @@ function plot_box_byA(T, spec, algs, yfield, ylab, ttl)
     ax = axes(); hold(ax,'on');
     boxchart(ax, X.xcat, log(X.(yfield)), 'GroupByColor', X.algorithm);
 
-    xlabel("Aircraft count (a)");
+    xlabel("Number of eligible aircraft per epoch");
     ylabel(ylab);
     title(ttl);
     grid(ax,'on');
