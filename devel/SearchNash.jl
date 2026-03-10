@@ -4,15 +4,18 @@ using BlockArrays: Block
 function PrepNash(r,n,λ)
     C = SetC(r,n,λ)
 
-    n = blocksize(C)[1] # Number of vehicles
-    m = size(C[Block(1)])[1] # Number of actions
+    n = blocksize(C)[1]                # Number of vehicles
+    m = size(C[Block(1)])[1]           # Number of actions
 
-    # Construct variables
-    fs = [(x, θ) -> x[Block(ii)]'*C[m*(ii-1)+1:m*ii,:]*x for ii in 1:n]
+    # Player objectives / constraints
+    fs = [(x, θ) -> x[Block(ii)]' * C[m*(ii-1)+1:m*ii, :] * x for ii in 1:n]
     gs = [(x, θ) -> [sum(x[Block(ii)]) - 1] for ii in 1:n]
     hs = [(x, θ) -> x[Block(ii)] for ii in 1:n]
-    g̃ = (x, θ) -> [0]
-    h̃ = (x, θ) -> [0]
+
+    # Dummy shared constraints that are symbolically non-constant but always zero
+    g̃ = (x, θ) -> [x[1] - x[1]]
+    h̃ = (x, θ) -> [x[1] - x[1]]
+
     problem = ParametricGame(
         objectives = fs,
         equality_constraints = gs,

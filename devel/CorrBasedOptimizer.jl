@@ -15,7 +15,8 @@ function SearchCorr(r, n, λ, Δ;
     l = m^n                          # joint action dimension
 
     # Expected total system cost
-    f(x, θ) = CalcJ(x[1:l], C, m, n)
+    # f(x, θ) = CalcJ(x[1:l], C, m, n)
+    f(x, θ) = CalcWeightedJ(x[1:l], C, m, n, 1 ./ sigma)
 
     # Probability simplex
     g(x, θ) = [sum(x[1:l]) - 1]
@@ -40,7 +41,8 @@ function SearchCorr(r, n, λ, Δ;
         solve(problem, [0]; verbose = verbose)
 
     # Report expected system cost as the main score
-    score = CalcJ(primals[1:l], C, m, n)
+    # score = CalcJ(primals[1:l], C, m, n)
+    score = CalcWeightedJ(primals[1:l], C, m, n, 1 ./ sigma)
     avgDelayScore = score / n
 
     fairScore = EvalFairness(primals[1:l], C, m, n, Δ)

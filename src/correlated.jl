@@ -18,13 +18,16 @@ export NashBasedOptimizer
 include("../devel/CorrBasedOptimizer.jl")
 export SearchCorr
 include("../devel/SearchNashBrute.jl")
+export SearchNashBrute
 include("../devel/BruteNashBasedOptimizer.jl")
-export BruteNashBasedOptimizer
+export BruteNashBasedOptimizer, SolveNashBrute
 include("../VQSim/actions.jl")
 include("../VQSim/costs.jl")
 include("../VQSim/schedule.jl")
 include("../VQSim/state.jl")
 export SimParams, init_state
+include("../devel/MC_ccce.jl")
+export run_mc_ccce_experiment, sample_fixed_sigma, CEViolationWithNoise, save_mc_rows_mat
 
 include("../VQSim/VQ_SearchCorrTensor.jl")
 export build_epoch_game_tensors, CalcH_Tensor, SearchCorrTensor, sample_k, realized_choice_conditional_BR

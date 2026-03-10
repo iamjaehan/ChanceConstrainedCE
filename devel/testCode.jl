@@ -11,8 +11,10 @@ zalpha = 2
 
 # scalar or vector both allowed
 # sigma = 100
-# sigma = [0.1,0.2,0.05]
-sigma = [60,59.9,30]
+# sigma = [0.1,0.15,0.05]
+# sigma = [60,59.9,30]
+# sigma = [20, 100, 70]
+sigma = [20, 10, 5]*5
 
 k = 5
 
@@ -47,7 +49,7 @@ PrintCEList(top_mu)
 println("=== TOP μσ ===")
 PrintCEList(top_mus)
 
-println("=== TOP μpσ ===")
+println("=== TOP σ ===")
 PrintCEList(top_mups)
 
 println("=== RANDOM ===")
@@ -95,7 +97,7 @@ println("RESULT SUMMARY")
 println("baseline avgDelay      = ", res0.avgDelayScore)
 println("μ avgDelay             = ", res_mu.avgDelayScore)
 println("μσ avgDelay            = ", res_mus.avgDelayScore)
-println("μpσ avgDelay           = ", res_mups.avgDelayScore)
+println("σ avgDelay           = ", res_mups.avgDelayScore)
 println("random avgDelay        = ", res_rand.avgDelayScore)
 println("================================================")
 
@@ -103,7 +105,7 @@ println("STATUS CHECK")
 println("baseline = ", res0.status)
 println("μ        = ", res_mu.status)
 println("μσ       = ", res_mus.status)
-println("μpσ      = ", res_mups.status)
+println("σ      = ", res_mups.status)
 println("random   = ", res_rand.status)
 
 println("TESTING DONE")

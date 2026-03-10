@@ -116,6 +116,31 @@ function CalcJ(x, C, m, n)
     return J
 end
 
+function CalcWeightedJ(x, C, m, n, w)
+
+    x = reshape(x, ntuple(i->m,n))
+    aSeq = generateAseq(0,0,m,n)
+
+    J = 0.0
+
+    for a in aSeq
+
+        zValue = x[CartesianIndex(a)]
+
+        cost = 0.0
+        for i in 1:n
+            for j in 1:n
+                cost += w[i] * C[Block(i,j)][a[i],a[j]]
+            end
+        end
+
+        J += zValue * cost
+
+    end
+
+    return J
+end
+
 function CalcIndividualJ(x,idx,C,m,n)
     x = reshape(x,ntuple(i->m,n))
     aSeq = generateAseq(0,0,m,n) #Generates all the possible actions
