@@ -2,14 +2,15 @@ using correlated
 using BlockArrays
 using Combinatorics
 using Statistics
+using Random
 
 function SetC(r,n,λ)
     # Parameter setting
     # r Number of runways
     # l Number of sequencing legs
     # d Number of departure terminals
-    dF = 5 # Delay factor
-    eF = dF*6 # Hazard factor
+    dF = 300 # Delay factor
+    eF = dF*1 # Hazard factor
     sF = dF # All stop factor
 
     # Number of actions and players
@@ -133,32 +134,43 @@ function CalcIndividualJ(x,idx,C,m,n)
 end
 
 function CalcMarginalP(i, ai, x_f, m, n)
-    aSeq = generateAseq(i,ai,m,n)
-    l = length(aSeq)
-    p = 0
-    for j in 1:l
+    aSeq = generateAseq(i, ai, m, n)
+    p = zero(eltype(x_f))
+    for j in eachindex(aSeq)
         p += x_f[CartesianIndex(aSeq[j])]
     end
     return p
 end
 
-function CalcH(x,m,n,C; zalpha, sigma)
-    x_f = reshape(x,ntuple(i->m,n))
-    out = Vector{Any}(undef,m^n + m^2*n - n*m)
+function CalcH(x, m, n, C; zalpha, sigma, zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}())
+    x_f = reshape(x, ntuple(i -> m, n))
+
+    T = eltype(x)
+    out = Vector{T}(undef, m^n + m^2*n - n*m)
+
+    # 1) probability nonnegativity constraints: x >= 0
     out[1:length(x)] = x
+
+    # 2) CE chance constraints:
+    # original math form: mean_diff + margin <= 0
+    # solver expects h(x) >= 0
+    # so we pass h_ce = -(mean_diff + margin)
     c = length(x)
     for i in 1:n
         for ai in 1:m
-            p_ai = CalcMarginalP(i,ai,x_f,m,n)
-            base = CalcPhi(i,ai,ai,x_f,m,n,C)
+            p_ai = CalcMarginalP(i, ai, x_f, m, n)
+            base = CalcPhi(i, ai, ai, x_f, m, n, C)
             for _ai in 1:m
                 if ai == _ai
                     continue
                 end
                 c += 1
-                mean_diff = base - CalcPhi(i,ai,_ai,x_f,m,n,C)
-                margin = zalpha * sigma * p_ai
-                out[c] = mean_diff + margin
+                mean_diff = base - CalcPhi(i, ai, _ai, x_f, m, n, C)
+
+                sigma_eff = ((i, ai, _ai) in zero_sigma_ce_keys) ? zero(sigma) : sigma
+                margin = zalpha * sigma_eff * p_ai
+
+                out[c] = -(mean_diff + margin)
             end
         end
     end
@@ -231,11 +243,14 @@ function T3Const(xi,l)
     return v .- w
 end
 
-function CorrPacker(x,C,m,n,l,Δ; zalpha, sigma)
-    out = [CalcH(x[1:l], m, n, C; zalpha = zalpha, sigma = sigma);
-    T1Const(x,C,m,n,l);
-    T2Const(x,C,m,n,l,Δ);
-    T3Const(x,l)]
+function CorrPacker(x,C,m,n,l,Δ; zalpha, sigma, zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}())
+    out = [CalcH(x[1:l], m, n, C;
+                 zalpha = zalpha,
+                 sigma = sigma,
+                 zero_sigma_ce_keys = zero_sigma_ce_keys);
+           T1Const(x,C,m,n,l);
+           T2Const(x,C,m,n,l,Δ);
+           T3Const(x,l)]
     return out
 end
 
@@ -333,4 +348,187 @@ function max_CE_violation_2p(z, C, m)
         maxv = max(maxv, s)
     end
     return maxv
+end
+
+function NumCorrPrimalVars(m, n)
+    l = m^n
+    return l + n + 1
+end
+
+function NumCorrEqConstraints()
+    return 1
+end
+
+function NumCorrIneqConstraints(m, n)
+    l = m^n
+    return l + n*m*(m-1) + 3*n
+end
+
+function SplitCorrSolution(variables, m, n)
+    l_pr = NumCorrPrimalVars(m, n)
+    l_eq = NumCorrEqConstraints()
+    l_ineq = NumCorrIneqConstraints(m, n)
+
+    x_sol = variables[1:l_pr]
+    lambda_eq = variables[l_pr + 1 : l_pr + l_eq]
+    mu_ineq = variables[l_pr + l_eq + 1 : l_pr + l_eq + l_ineq]
+
+    return x_sol, lambda_eq, mu_ineq
+end
+
+function BuildCorrConstraintMap(m, n)
+    l = m^n
+    meta = Vector{NamedTuple}()
+
+    # 1) x >= 0 constraints from CalcH
+    for joint_idx in 1:l
+        push!(meta, (
+            idx = length(meta) + 1,
+            block = :prob_nonneg,
+            joint_idx = joint_idx
+        ))
+    end
+
+    # 2) CE constraints from CalcH
+    for i in 1:n
+        for ai in 1:m
+            for aibar in 1:m
+                if ai == aibar
+                    continue
+                end
+                push!(meta, (
+                    idx = length(meta) + 1,
+                    block = :ce,
+                    player = i,
+                    rec = ai,
+                    dev = aibar
+                ))
+            end
+        end
+    end
+
+    # 3) T1 constraints
+    for i in 1:n
+        push!(meta, (
+            idx = length(meta) + 1,
+            block = :t1,
+            player = i
+        ))
+    end
+
+    # 4) T2 constraints
+    for i in 1:n
+        push!(meta, (
+            idx = length(meta) + 1,
+            block = :t2,
+            player = i
+        ))
+    end
+
+    # 5) T3 constraints
+    for i in 1:n
+        push!(meta, (
+            idx = length(meta) + 1,
+            block = :t3,
+            player = i
+        ))
+    end
+
+    return meta
+end
+
+function GetCEConstraintIndices(m, n)
+    cmap = BuildCorrConstraintMap(m, n)
+    return [c.idx for c in cmap if c.block == :ce]
+end
+
+function GetActiveConstraints(ineq_vals, mu_ineq; tol_val = 1e-7, tol_mu = 1e-7)
+    active = BitVector(undef, length(ineq_vals))
+    for k in eachindex(ineq_vals)
+        active[k] = (abs(ineq_vals[k]) <= tol_val) && (mu_ineq[k] >= tol_mu)
+    end
+    return active
+end
+
+function GetActiveCEConstraints(res; tol_val = 1e-7, tol_mu = 1e-7)
+    cmap = BuildCorrConstraintMap(res.m, res.n)
+    active = GetActiveConstraints(res.ineq_vals, res.mu_ineq; tol_val = tol_val, tol_mu = tol_mu)
+
+    ce_list = NamedTuple[]
+    for k in eachindex(cmap)
+        if cmap[k].block == :ce && active[k]
+            push!(ce_list, (
+                idx = k,
+                player = cmap[k].player,
+                rec = cmap[k].rec,
+                dev = cmap[k].dev,
+                mu = res.mu_ineq[k],
+                val = res.ineq_vals[k]
+            ))
+        end
+    end
+    return ce_list
+end
+
+function CEKeyList(active_ce_list)
+    return Set((c.player, c.rec, c.dev) for c in active_ce_list)
+end
+
+function TopKActiveCEByMu(res, k; tol_val = 1e-7, tol_mu = 1e-7)
+    ce_list = GetActiveCEConstraints(res; tol_val = tol_val, tol_mu = tol_mu)
+    sort!(ce_list, by = x -> -x.mu)
+    return ce_list[1:min(k, length(ce_list))]
+end
+
+function GetCEConstraintInfo(res)
+    x = res.primals[1:res.l]
+    x_f = reshape(x, ntuple(_ -> res.m, res.n))
+    cmap = BuildCorrConstraintMap(res.m, res.n)
+
+    ce_list = NamedTuple[]
+    for k in eachindex(cmap)
+        if cmap[k].block == :ce
+            i   = cmap[k].player
+            ai  = cmap[k].rec
+            dev = cmap[k].dev
+
+            p_ai = CalcMarginalP(i, ai, x_f, res.m, res.n)
+
+            push!(ce_list, (
+                idx = k,
+                player = i,
+                rec = ai,
+                dev = dev,
+                mu = res.mu_ineq[k],
+                val = res.ineq_vals[k],
+                p_ai = p_ai,
+                mup = res.mu_ineq[k] * p_ai
+            ))
+        end
+    end
+    return ce_list
+end
+
+function TopKCEByMuPAI(res, k)
+    ce_list = GetCEConstraintInfo(res)
+    sort!(ce_list, by = x -> -x.mup)
+    return ce_list[1:min(k, length(ce_list))]
+end
+
+function TopKCEByMu(res, k)
+    ce_list = GetCEConstraintInfo(res)
+    sort!(ce_list, by = x -> -x.mu)
+    return ce_list[1:min(k, length(ce_list))]
+end
+
+function RandomKCE(res, k; rng = Random.GLOBAL_RNG)
+    ce_list = GetCEConstraintInfo(res)
+    idx = randperm(rng, length(ce_list))[1:min(k, length(ce_list))]
+    return ce_list[idx]
+end
+
+function PrintCEList(ce_list)
+    for c in ce_list
+        println(c)
+    end
 end

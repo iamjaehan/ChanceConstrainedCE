@@ -10,7 +10,7 @@ export ParametricOptimizationProblem, solve, total_dim
 include("parametric_optimization_problem.jl")
 export ParametricGame
 include("../devel/0_GameSetup.jl")
-export SetC, generateAseq
+export SetC, generateAseq, BuildCorrConstraintMap, GetActiveConstraints, TopKActiveCEByMu, CEKeyList, GetActiveCEConstraints, CorrPacker, TopKCEByMuPAI, TopKCEByMu, RandomKCE, PrintCEList, GetCEConstraintInfo
 include("../devel/SearchNash.jl")
 export SearchNash, PrepNash, SolveNash
 include("../devel/NashBasedOptimizer.jl")
