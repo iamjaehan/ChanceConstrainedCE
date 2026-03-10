@@ -9,7 +9,7 @@ function SetC(r,n,λ)
     # l Number of sequencing legs
     # d Number of departure terminals
     dF = 5 # Delay factor
-    eF = dF*1000 # Hazard factor
+    eF = dF*6 # Hazard factor
     sF = dF # All stop factor
 
     # Number of actions and players
@@ -69,34 +69,6 @@ function SetC(r,n,λ)
     end
     return C
 end
-
-# Construct cost matrix _ Sample case
-# C12 = -[4 1; 5 0]
-# C12 = [10 0; 5 1]
-# C21 = C12'
-# C = BlockArray([C12 C21],[2],[2,2])
-# C11 = zeros(2,2)
-# C22 = zeros(2,2)
-# C12 = -[3 2; 5 0]
-# C21 = C12
-# C = BlockArray([C11 C12; C21 C22],[2,2],[2,2])
-
-# Define functions
-# function generateAseq(i,ai,m,n)
-#     primeChoice = "1:$m"
-#     stringUnit = ""
-#     for j in 1:n
-#         if j == i
-#             stringUnit = stringUnit*"$ai"*","
-#         else
-#             stringUnit = stringUnit*primeChoice*","
-#         end
-#     end
-#     stringUnit = chop(stringUnit)
-#     stringSum = "vec(collect(Iterators.product("*stringUnit*")))"
-#     aSet = eval(Meta.parse(stringSum))
-#     return aSet
-# end
 
 function generateAseq(i, ai, m, n)
     ranges = ntuple(k -> (i != 0 && k == i) ? (ai:ai) : (1:m), n)
