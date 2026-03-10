@@ -10,7 +10,7 @@ function SetC(r,n,λ)
     # l Number of sequencing legs
     # d Number of departure terminals
     dF = 300 # Delay factor
-    eF = dF*1 # Hazard factor
+    eF = dF*2 # Hazard factor
     sF = dF # All stop factor
 
     # Number of actions and players
@@ -148,32 +148,33 @@ function CalcH(x, m, n, C; zalpha, sigma, zero_sigma_ce_keys = Set{Tuple{Int,Int
     T = eltype(x)
     out = Vector{T}(undef, m^n + m^2*n - n*m)
 
-    # 1) probability nonnegativity constraints: x >= 0
     out[1:length(x)] = x
 
-    # 2) CE chance constraints:
-    # original math form: mean_diff + margin <= 0
-    # solver expects h(x) >= 0
-    # so we pass h_ce = -(mean_diff + margin)
     c = length(x)
     for i in 1:n
         for ai in 1:m
             p_ai = CalcMarginalP(i, ai, x_f, m, n)
             base = CalcPhi(i, ai, ai, x_f, m, n, C)
+
             for _ai in 1:m
                 if ai == _ai
                     continue
                 end
                 c += 1
+
                 mean_diff = base - CalcPhi(i, ai, _ai, x_f, m, n, C)
 
-                sigma_eff = ((i, ai, _ai) in zero_sigma_ce_keys) ? zero(sigma) : sigma
+                σi = isa(sigma, Number) ? sigma : sigma[i]
+
+                sigma_eff = ((i, ai, _ai) in zero_sigma_ce_keys) ? zero(σi) : σi
+
                 margin = zalpha * sigma_eff * p_ai
 
                 out[c] = -(mean_diff + margin)
             end
         end
     end
+
     return out
 end
 
@@ -480,38 +481,53 @@ function TopKActiveCEByMu(res, k; tol_val = 1e-7, tol_mu = 1e-7)
     return ce_list[1:min(k, length(ce_list))]
 end
 
-function GetCEConstraintInfo(res)
+function GetCEConstraintInfo(res; sigma = 1.0)
     x = res.primals[1:res.l]
     x_f = reshape(x, ntuple(_ -> res.m, res.n))
     cmap = BuildCorrConstraintMap(res.m, res.n)
 
     ce_list = NamedTuple[]
+
     for k in eachindex(cmap)
         if cmap[k].block == :ce
+
             i   = cmap[k].player
             ai  = cmap[k].rec
             dev = cmap[k].dev
 
             p_ai = CalcMarginalP(i, ai, x_f, res.m, res.n)
 
+            σi = isa(sigma, Number) ? sigma : sigma[i]
+
+            μ = res.mu_ineq[k]
+
             push!(ce_list, (
                 idx = k,
                 player = i,
                 rec = ai,
                 dev = dev,
-                mu = res.mu_ineq[k],
+                mu = μ,
                 val = res.ineq_vals[k],
                 p_ai = p_ai,
-                mup = res.mu_ineq[k] * p_ai
+                sigma = abs(σi),
+                mu_sigma = abs(μ * σi),
+                mup_sigma = abs(μ * p_ai * σi)
             ))
         end
     end
+
     return ce_list
 end
 
-function TopKCEByMuPAI(res, k)
-    ce_list = GetCEConstraintInfo(res)
-    sort!(ce_list, by = x -> -x.mup)
+function TopKCEByMuPSigma(res, k; sigma=1.0)
+    ce_list = GetCEConstraintInfo(res; sigma=sigma)
+    sort!(ce_list, by = x -> -x.mup_sigma)
+    return ce_list[1:min(k, length(ce_list))]
+end
+
+function TopKCEByMuSigma(res, k; sigma=1.0)
+    ce_list = GetCEConstraintInfo(res; sigma=sigma)
+    sort!(ce_list, by = x -> -x.mu_sigma)
     return ce_list[1:min(k, length(ce_list))]
 end
 
@@ -521,14 +537,23 @@ function TopKCEByMu(res, k)
     return ce_list[1:min(k, length(ce_list))]
 end
 
-function RandomKCE(res, k; rng = Random.GLOBAL_RNG)
-    ce_list = GetCEConstraintInfo(res)
-    idx = randperm(rng, length(ce_list))[1:min(k, length(ce_list))]
+function TopKCEBySigma(res, k; sigma=1.0)
+    ce_list = GetCEConstraintInfo(res; sigma=sigma)
+    sort!(ce_list, by = x -> -x.sigma)
+    return ce_list[1:min(k, length(ce_list))]
+end
+
+function RandomKCE(res, k; sigma=1.0, rng = Random.GLOBAL_RNG)
+    ce_list = GetCEConstraintInfo(res; sigma=sigma)
+
+    idx = randperm(rng, length(ce_list))[1:min(k,length(ce_list))]
+
     return ce_list[idx]
 end
 
 function PrintCEList(ce_list)
-    for c in ce_list
-        println(c)
-    end
+    # for c in ce_list
+    #     println(c)
+    # end
+    println([c.idx for c in ce_list])
 end
