@@ -1,10 +1,10 @@
 clear; clc; close all;
 
-load mc_results_ccce_alpha.mat
+% load mc_results_ccce_alpha.mat
 % load mc_results_ccce_alpha_big.mat
 % load mc_results_ccce_alpha_med.mat
 % load mc_results_ccce_alpha_small.mat
-% load mc_results_ccce_alpha_usmall.mat
+load mc_results_ccce_alpha_usmall.mat
 
 %% parameter
 nSamples = 10;      % number of MC samples per algorithm
@@ -121,7 +121,6 @@ boxchart(alg_cat(idx_score_valid), norm_score(idx_score_valid), 'BoxWidth', 0.6)
 hold on
 h3 = plot(xcat, mean_score_alg, '-s', 'LineWidth', 2, 'MarkerSize', 7);
 ylabel('Normalized score')
-set(gca,"YScale",'log')
 
 xlabel('Algorithm')
 title('Normalized score and mean number of deviators')
