@@ -1,18 +1,18 @@
 clear; clc; close all;
 
 %% files
+cases = {
+    % 'big',   'mc_results_ccce_alpha_big.mat'
+    'med',   'mc_results_ccce_alpha_med.mat'
+    'small', 'mc_results_ccce_alpha_small.mat'
+    'usmall','mc_results_ccce_alpha_usmall.mat'
+};
+
 % cases = {
 %     'big',   'mc_results_ccce_alpha_big.mat'
 %     'med',   'mc_results_ccce_alpha_med.mat'
 %     'small', 'mc_results_ccce_alpha_small.mat'
-%     'usmall','mc_results_ccce_alpha_usmall.mat'
 % };
-
-cases = {
-    'big',   'mc_results_ccce_alpha_big.mat'
-    'med',   'mc_results_ccce_alpha_med.mat'
-    'small', 'mc_results_ccce_alpha_small.mat'
-};
 
 order = [
     "NE"
@@ -36,6 +36,8 @@ case_colors = [
 
 %% store normalized scores
 all_norm_score = cell(nCases, nAlg);
+scoreNormFactor = [300,30,30];
+scoreNormFactor = [1,1,1];
 
 for c = 1:nCases
     S = load(cases{c,2});
@@ -78,7 +80,7 @@ for c = 1:nCases
             continue
         end
 
-        norm_score(idx_t) = score(idx_t) ./ base_score;
+        norm_score(idx_t) = (score(idx_t) ./ base_score-1)./scoreNormFactor(c)+1;
     end
 
     for k = 1:nAlg
@@ -91,17 +93,21 @@ end
 % figure('Position',[1000 818 560  300]);
 % hold on
 
+%% plot
 figure('Position',[100 100 1200 500]);
 hold on
 
 xCenters = 1:nAlg;
-offsets  = [-0.27, -0.09, 0.09, 0.27];
+offsets  = [-0.18, 0, 0.18];   % case 3개니까 3개만 쓰는 게 맞음
+% offsets  = [-0.21 -0.07 0.07 0.21]* 1.1;   % case 3개니까 3개만 쓰는 게 맞음
+boxw     = 0.14;
 
 case_names = string(cases(:,1));
 h = gobjects(nCases,1);
 
 for c = 1:nCases
     thisColor = case_colors(c,:);
+    mean_vals = nan(1,nAlg);   % 각 case의 algorithm별 mean 저장
 
     for k = 1:nAlg
         vals = all_norm_score{c,k};
@@ -112,35 +118,57 @@ for c = 1:nCases
         xc = xCenters(k) + offsets(c);
         x  = ones(size(vals)) * xc;
 
-        % swarm only
-        s = swarmchart(x, vals, 22, ...
-            'MarkerEdgeColor', thisColor, ...
-            'MarkerFaceColor', thisColor, ...
-            'MarkerFaceAlpha', 0.30, ...
-            'MarkerEdgeAlpha', 0.55, ...
-            'XJitter', 'density', ...
-            'XJitterWidth', 0.10);
-        hold on
+        % 1) boxchart
+        b = boxchart(x, vals, ...
+            'BoxWidth', boxw, ...
+            'BoxFaceColor', thisColor, ...
+            'BoxEdgeColor', thisColor, ...
+            'MarkerColor', thisColor, ...
+            'WhiskerLineColor', thisColor, ...
+            'LineWidth', 1.2);
+        b.BoxFaceAlpha = 0.12;
+        b.MarkerStyle = 'o';
+        b.JitterOutliers = 'off';
 
+        % legend handle 저장
         if ~isgraphics(h(c))
-            h(c) = s;
+            h(c) = b;
         end
 
-        % mean marker
+        % 2) swarmchart overlay
+        swarmchart(x, vals, 18, ...
+            'MarkerEdgeColor', thisColor, ...
+            'MarkerFaceColor', thisColor, ...
+            'MarkerFaceAlpha', 0.28, ...
+            'MarkerEdgeAlpha', 0.45, ...
+            'XJitter', 'density', ...
+            'XJitterWidth', boxw*0.55);
+
+        % 3) mean marker
         mu = mean(vals, 'omitnan');
+        mean_vals(k) = mu;
+        mean_vals(1) = nan;
+
         plot(xc, mu, 'd', ...
             'MarkerSize', 7, ...
             'MarkerFaceColor', thisColor, ...
             'MarkerEdgeColor', 'k', ...
             'LineWidth', 0.8);
     end
+
+    % 4) mean끼리 연결
+    valid = ~isnan(mean_vals);
+    plot(xCenters(valid) + offsets(c), mean_vals(valid), '-', ...
+        'Color', thisColor, ...
+        'LineWidth', 1.8);
 end
 
-set(gca, 'YScale', 'log')
+set(gca, 'YScale', 'linear')
 xlim([0.5, nAlg+0.5])
 xticks(xCenters)
 xticklabels(order)
 xtickangle(20)
+% ylim([0.95 1.4])
 
 ylabel('Normalized score')
 xlabel('Algorithm')
