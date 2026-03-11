@@ -1,13 +1,13 @@
 clear; clc; close all;
 
-% load mc_results_ccce_alpha.mat
+load mc_results_ccce_alpha.mat
 % load mc_results_ccce_alpha_big.mat
 % load mc_results_ccce_alpha_med.mat
 % load mc_results_ccce_alpha_small.mat
-load mc_results_ccce_alpha_usmall.mat
+% load mc_results_ccce_alpha_usmall.mat
 
 %% parameter
-nSamples = 3;      % number of MC samples per algorithm
+nSamples = 10;      % number of MC samples per algorithm
 confLevel = 0.95;    % confidence level
 
 %% z-value for normal CI
@@ -86,23 +86,42 @@ for k = 1:length(order)
     end
 end
 
+%% mean normalized score for trend line
+mean_score_alg = nan(length(order),1);
+
+for k = 1:length(order)
+    idx = (alg_label == order(k)) & ~isnan(norm_score);
+    vals = norm_score(idx);
+
+    if ~isempty(vals)
+        mean_score_alg(k) = mean(vals);
+    end
+end
+
 %% plot
 figure('Position',[100 100 1150 520]);
 hold on
 
+yyaxis right
+h1 = plot(xcat, mean_dev_alg, '-o', 'LineWidth', 2, 'MarkerSize', 7);
+hold on
+h2 = errorbar(xcat, mean_dev_alg, ci_halfwidth, ...
+    'LineStyle', 'none', ...
+    'LineWidth', 1.5, ...
+    'CapSize', 10);
+ylabel('Mean number of deviators')
+ylim([0 3])
+
+% test = [nan, 0.5, 0.75, 0.9, 0.95, 0.99];
+% plot(3*(1-test))
+
 yyaxis left
 idx_score_valid = ~isnan(norm_score);
 boxchart(alg_cat(idx_score_valid), norm_score(idx_score_valid), 'BoxWidth', 0.6)
-ylabel('Normalized score')
-
-yyaxis right
-plot(xcat, mean_dev_alg, '-o', 'LineWidth', 2, 'MarkerSize', 7)
 hold on
-errorbar(xcat, mean_dev_alg, ci_halfwidth, ...
-    'LineStyle', 'none', ...
-    'LineWidth', 1.5, ...
-    'CapSize', 10)
-ylabel('Mean number of deviators')
+h3 = plot(xcat, mean_score_alg, '-s', 'LineWidth', 2, 'MarkerSize', 7);
+ylabel('Normalized score')
+set(gca,"YScale",'log')
 
 xlabel('Algorithm')
 title('Normalized score and mean number of deviators')
@@ -110,5 +129,4 @@ grid on
 box on
 xtickangle(20)
 
-test = [nan, 0.5, 0.75, 0.9, 0.95, 0.99];
-plot(3*(1-test))
+legend([h1 h3], {'Mean # deviators', 'Mean normalized score'}, 'Location', 'best')
