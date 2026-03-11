@@ -1,8 +1,8 @@
 using correlated
 using BlockArrays: Block
 
-function PrepNashBrute(r,n,λ)
-    C = SetC(r,n,λ)
+function PrepNashBrute(r,n,λ; mult = mult)
+    C = SetC(r,n,λ; mult = mult)
 
     n = blocksize(C)[1] # Number of vehicles
     m = size(C[Block(1)])[1] # Number of actions
@@ -109,9 +109,9 @@ end
 
 using Random
 
-function SearchNashBrute(r, n, λ, Δ, sigma; seed = 1, pick_mode = :random)
+function SearchNashBrute(r, n, λ, Δ, sigma; seed = 1, pick_mode = :random, mult = mult)
     println("Begin brute Nash search for m=$(2^r) and n=$n case.")
-    (; C, m, n) = PrepNashBrute(r, n, λ)
+    (; C, m, n) = PrepNashBrute(r, n, λ; mult = mult)
 
     # nominal NE: sigma = 0
     nash_list, nash_idx_list = SolveNashBrute(C, m, n; zalpha = 0.0, sigma = 0.0)

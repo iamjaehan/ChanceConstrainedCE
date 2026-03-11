@@ -46,8 +46,8 @@ end
 # Brute-force NE wrapper
 ############################################################
 
-function SearchNashBruteWrapper(r, n, λ, Δ, sigma; seed = 1, pick_mode = :random)
-    res_ne = SearchNashBrute(r, n, λ, Δ, sigma; seed = seed, pick_mode = pick_mode)
+function SearchNashBruteWrapper(r, n, λ, Δ, sigma; seed = 1, pick_mode = :random, mult = mult)
+    res_ne = SearchNashBrute(r, n, λ, Δ, sigma; seed = seed, pick_mode = pick_mode, mult = mult)
 
     if !res_ne.success
         return (;
@@ -81,7 +81,8 @@ function run_mc_ccce_experiment(;
     mc_runs = 100,
     noise_runs = 100,
     seed = 42,
-    include_ne = true
+    include_ne = true,
+    mult = mult
 )
 
     rng = MersenneTwister(seed)
@@ -103,7 +104,8 @@ function run_mc_ccce_experiment(;
         ################################################
         res0 = SearchCorr(r, n, λ, Δ;
             zalpha = zalpha,
-            sigma = sigma)
+            sigma = sigma,
+            mult = mult)
 
         ################################################
         # selection rules
@@ -118,16 +120,19 @@ function run_mc_ccce_experiment(;
         res_mu = SearchCorr(r, n, λ, Δ;
             zalpha = zalpha,
             sigma = sigma,
+            mult = mult,
             zero_sigma_ce_keys = CEKeyList(top_mu))
 
         res_mus = SearchCorr(r, n, λ, Δ;
             zalpha = zalpha,
             sigma = sigma,
+            mult = mult,
             zero_sigma_ce_keys = CEKeyList(top_mus))
 
         res_rand = SearchCorr(r, n, λ, Δ;
             zalpha = zalpha,
             sigma = sigma,
+            mult = mult,
             zero_sigma_ce_keys = CEKeyList(top_rand))
 
         ################################################

@@ -42,7 +42,7 @@ function sample_joint_action_from_x(rng, x, m, n)
 end
 
 function check_deviation_solver_style(x, C, m, n, sigma, rng)
-
+    ε_dev = 1e-7
     deviated = falses(n)
 
     for i in 1:n
@@ -80,7 +80,7 @@ function check_deviation_solver_style(x, C, m, n, sigma, rng)
                     end
                 end
 
-                if mean_diff + η * pai < 0
+                if mean_diff + η * pai < -ε_dev
                     deviated[i] = true
                     break
                 end
@@ -206,7 +206,8 @@ function run_mc_alpha_experiment(;
     noise_runs = 100,
     seed = 42,
     include_ne = true,
-    ne_pick_mode = :random
+    ne_pick_mode = :random,
+    mult = mult
 )
     rng = MersenneTwister(seed)
     rows = NamedTuple[]
@@ -223,7 +224,7 @@ function run_mc_alpha_experiment(;
         # already returned by SearchNashBruteWrapper
         ################################################
         if include_ne
-            res_ne = SearchNashBruteWrapper(r, n, λ, Δ, sigma; seed = t, pick_mode = ne_pick_mode)
+            res_ne = SearchNashBruteWrapper(r, n, λ, Δ, sigma; seed = t, pick_mode = ne_pick_mode, mult = mult)
 
             push!(rows, (
                 mc_iter = t,
@@ -246,7 +247,8 @@ function run_mc_alpha_experiment(;
 
             res = SearchCorr(r, n, λ, Δ;
                 zalpha = zalpha,
-                sigma = sigma)
+                sigma = sigma,
+                mult = mult)
 
             x = sanitize_prob_vector(res.primals[1:res.l])
 

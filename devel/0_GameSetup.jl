@@ -4,13 +4,13 @@ using Combinatorics
 using Statistics
 using Random
 
-function SetC(r,n,λ)
+function SetC(r,n,λ;mult=2.0)
     # Parameter setting
     # r Number of runways
     # l Number of sequencing legs
     # d Number of departure terminals
     dF = 300 # Delay factor
-    eF = dF*2 # Hazard factor
+    eF = dF*mult # Hazard factor
     sF = dF # All stop factor
 
     # Number of actions and players

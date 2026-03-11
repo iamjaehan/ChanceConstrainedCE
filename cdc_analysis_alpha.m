@@ -1,9 +1,13 @@
 clear; clc; close all;
 
-load mc_results_ccce_alpha.mat
+% load mc_results_ccce_alpha.mat
+% load mc_results_ccce_alpha_big.mat
+% load mc_results_ccce_alpha_med.mat
+% load mc_results_ccce_alpha_small.mat
+load mc_results_ccce_alpha_usmall.mat
 
 %% parameter
-nSamples = 5;      % number of MC samples per algorithm
+nSamples = 3;      % number of MC samples per algorithm
 confLevel = 0.95;    % confidence level
 
 %% z-value for normal CI
@@ -32,7 +36,7 @@ end
 
 order = [
     "NE"
-    "CC-CE (0.50)"
+    "Naive CE"
     "CC-CE (0.75)"
     "CC-CE (0.90)"
     "CC-CE (0.95)"
@@ -45,7 +49,7 @@ all_iters = unique(mc_iter);
 
 for t = all_iters(:)'
     idx_t = (mc_iter == t);
-    idx_naive = idx_t & (alg_label == "CC-CE (0.50)");
+    idx_naive = idx_t & (alg_label == "Naive CE");
 
     if sum(idx_naive) ~= 1
         continue
@@ -105,3 +109,6 @@ title('Normalized score and mean number of deviators')
 grid on
 box on
 xtickangle(20)
+
+test = [nan, 0.5, 0.75, 0.9, 0.95, 0.99];
+plot(3*(1-test))

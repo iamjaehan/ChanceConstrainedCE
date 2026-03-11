@@ -5,10 +5,11 @@ function SearchCorr(r, n, λ, Δ;
                     zalpha,
                     sigma,
                     zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}(),
+                    mult = 2.0, 
                     verbose = false)
 
     println("Begin Corr Search for m=$(2^r) and n=$n case.")
-    C = SetC(r, n, λ)
+    C = SetC(r, n, λ; mult=mult)
 
     n = blocksize(C)[1]              # Number of players
     m = size(C[Block(1)])[1]         # Number of actions
