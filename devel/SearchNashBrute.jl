@@ -140,7 +140,7 @@ function SearchNashBrute(r, n, λ, Δ, sigma; seed = 1, pick_mode = :random)
 
     jointPrimal = nash_list[chosen_idx]
 
-    score = CalcJ(jointPrimal, C, m, n)
+    # score = CalcJ(jointPrimal, C, m, n)
     score = CalcWeightedJ(jointPrimal, C, m, n, 1 ./ sigma)
     avgDelayScore = EvalAverageDelay(jointPrimal, C, m, n)
     fairScore = EvalFairness(jointPrimal, C, m, n, Δ)

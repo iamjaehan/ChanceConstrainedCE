@@ -1,4 +1,5 @@
-load mc_results_ccce.mat
+load mc_results_ccce2.mat
+
 set(groot, 'defaultTextInterpreter', 'latex');
 set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
 set(groot, 'defaultLegendInterpreter', 'latex');

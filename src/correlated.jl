@@ -27,7 +27,9 @@ include("../VQSim/schedule.jl")
 include("../VQSim/state.jl")
 export SimParams, init_state
 include("../devel/MC_ccce.jl")
-export run_mc_ccce_experiment, sample_fixed_sigma, CEViolationWithNoise, save_mc_rows_mat
+export run_mc_ccce_experiment, sample_fixed_sigma, CEViolationWithNoise, save_mc_rows_mat, SearchNashBruteWrapper
+include("../devel/MC_ccce_alpha.jl")
+export run_mc_alpha_experiment, save_mc_alpha_rows_mat
 
 include("../VQSim/VQ_SearchCorrTensor.jl")
 export build_epoch_game_tensors, CalcH_Tensor, SearchCorrTensor, sample_k, realized_choice_conditional_BR
