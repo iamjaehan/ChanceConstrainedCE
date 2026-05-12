@@ -11,9 +11,9 @@ function joint_action_to_onehot(a::Tuple, m, n)
     return vec(Z)
 end
 
-function realized_weighted_score(a::Tuple, C, m, n, sigma)
+function realized_score(a::Tuple, C, m, n)
     z = joint_action_to_onehot(a, m, n)
-    return CalcWeightedJ(z, C, m, n, 1 ./ sigma)
+    return CalcJ(z, C, m, n)
 end
 
 function alpha_to_z(alpha::Real)
@@ -174,7 +174,7 @@ function evaluate_ce_solution_realized(rng, x, C, m, n, sigma; noise_runs = 100)
         # a_real, deviated = realized_profile_after_simul_deviation(a_rec, C, m, eta, rng, sigma)
         deviated = check_deviation_solver_style(x, C, m, n, sigma, rng)
         a_rec = sample_joint_action_from_x(rng, x, m, n)
-        push!(score_list, realized_weighted_score(a_rec, C, m, n, sigma))
+        push!(score_list, realized_score(a_rec, C, m, n))
 
         # evaluate realized action with the SAME weighted cost function
         # push!(score_list, realized_weighted_score(a_rec, C, m, n, sigma))

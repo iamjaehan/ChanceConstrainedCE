@@ -1,4 +1,4 @@
-load mc_results_ccce2.mat
+load mc_results_ccce.mat
 
 set(groot, 'defaultTextInterpreter', 'latex');
 set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
@@ -42,11 +42,11 @@ mc_iter = mc_iter(keep);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 order = [
+    "NE"
     "CE"
     "CE - top 5 (\mu)"
     "CE - top 5 (\mu\sigma)"
     "CE - top 5 (random)"
-    "NE"
 ];
 
 method_label = categorical(method_label, order, 'Ordinal', true);
@@ -86,7 +86,7 @@ end
 
 plot(1:numel(order), means, 'ko', 'MarkerSize', 5, 'LineWidth', 1.5)
 
-ylabel('Normalized system cost')
+ylabel('Normalized system cost','FontSize',18)
 % xlabel('Method')
 % title('Monte Carlo system cost comparison (normalized by CE)')
 grid on
@@ -95,3 +95,37 @@ hold off
 ylim([0.6 1.8])
 set(gcf, 'Position', [1000 818 560  300]);
 exportgraphics(gcf, "1_sigma_test_cdc.pdf","Resolution",300);
+
+%%
+figure(2);
+clf
+
+% NE 제거
+mask = method_label ~= "NE";
+method_label_f = method_label(mask);
+score_norm_f   = score_norm(mask);
+
+% 안 쓰는 categorical category 제거
+method_label_f = removecats(method_label_f);
+
+boxchart(method_label_f, score_norm_f)
+hold on
+
+order_f = order(order ~= "NE");
+means = zeros(numel(order_f),1);
+
+for i = 1:numel(order_f)
+    means(i) = mean(score_norm_f(method_label_f == order_f(i)));
+end
+
+plot(1:numel(order_f), means, 'ko', 'MarkerSize', 5, 'LineWidth', 1.5)
+
+ylabel('Normalized system cost','FontSize',18)
+grid on
+set(gca,'XTick',[])
+ylim([0.7 1.1])
+
+set(gcf, 'Position', [1000 818 560 220]);
+exportgraphics(gcf, "1_sigma_test_cdc.pdf","Resolution",300);
+
+hold off

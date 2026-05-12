@@ -5,7 +5,8 @@ function SearchCorr(r, n, λ, Δ;
                     zalpha,
                     sigma,
                     zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}(),
-                    mult = 2.0, 
+                    sigma_scale_keys   = Dict{Tuple{Int,Int,Int},Float64}(),
+                    mult = 2.0,
                     verbose = false)
 
     println("Begin Corr Search for m=$(2^r) and n=$n case.")
@@ -15,18 +16,18 @@ function SearchCorr(r, n, λ, Δ;
     m = size(C[Block(1)])[1]         # Number of actions
     l = m^n                          # joint action dimension
 
-    # Expected total system cost
-    # f(x, θ) = CalcJ(x[1:l], C, m, n)
-    f(x, θ) = CalcWeightedJ(x[1:l], C, m, n, 1 ./ sigma)
+    # Expected total system cost (paper Eq. 4 / 24, uniform weighting)
+    f(x, θ) = CalcJ(x[1:l], C, m, n)
 
     # Probability simplex
     g(x, θ) = [sum(x[1:l]) - 1]
 
     # Keep current CC-CE implementation with p_ai and EF auxiliary constraints
     h(x, θ) = CorrPacker(x, C, m, n, l, Δ;
-                         zalpha = zalpha,
-                         sigma = sigma,
-                         zero_sigma_ce_keys = zero_sigma_ce_keys)
+                         zalpha             = zalpha,
+                         sigma              = sigma,
+                         zero_sigma_ce_keys = zero_sigma_ce_keys,
+                         sigma_scale_keys   = sigma_scale_keys)
 
     problem = ParametricOptimizationProblem(;
         objective = f,
@@ -41,9 +42,7 @@ function SearchCorr(r, n, λ, Δ;
     solverTime = @elapsed (; primals, variables, status, info) =
         solve(problem, [0]; verbose = verbose)
 
-    # Report expected system cost as the main score
-    # score = CalcJ(primals[1:l], C, m, n)
-    score = CalcWeightedJ(primals[1:l], C, m, n, 1 ./ sigma)
+    score = CalcJ(primals[1:l], C, m, n)
     avgDelayScore = score / n
 
     fairScore = EvalFairness(primals[1:l], C, m, n, Δ)

@@ -167,7 +167,9 @@ function CalcMarginalP(i, ai, x_f, m, n)
     return p
 end
 
-function CalcH(x, m, n, C; zalpha, sigma, zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}())
+function CalcH(x, m, n, C; zalpha, sigma,
+               zero_sigma_ce_keys  = Set{Tuple{Int,Int,Int}}(),
+               sigma_scale_keys    = Dict{Tuple{Int,Int,Int},Float64}())
     x_f = reshape(x, ntuple(i -> m, n))
 
     T = eltype(x)
@@ -191,7 +193,14 @@ function CalcH(x, m, n, C; zalpha, sigma, zero_sigma_ce_keys = Set{Tuple{Int,Int
 
                 σi = isa(sigma, Number) ? sigma : sigma[i]
 
-                sigma_eff = ((i, ai, _ai) in zero_sigma_ce_keys) ? zero(σi) : σi
+                key = (i, ai, _ai)
+                sigma_eff = if haskey(sigma_scale_keys, key)
+                    σi * sigma_scale_keys[key]
+                elseif key in zero_sigma_ce_keys
+                    zero(σi)
+                else
+                    σi
+                end
 
                 margin = zalpha * sigma_eff * p_ai
 
@@ -269,11 +278,14 @@ function T3Const(xi,l)
     return v .- w
 end
 
-function CorrPacker(x,C,m,n,l,Δ; zalpha, sigma, zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}())
+function CorrPacker(x,C,m,n,l,Δ; zalpha, sigma,
+                    zero_sigma_ce_keys = Set{Tuple{Int,Int,Int}}(),
+                    sigma_scale_keys   = Dict{Tuple{Int,Int,Int},Float64}())
     out = [CalcH(x[1:l], m, n, C;
                  zalpha = zalpha,
                  sigma = sigma,
-                 zero_sigma_ce_keys = zero_sigma_ce_keys);
+                 zero_sigma_ce_keys = zero_sigma_ce_keys,
+                 sigma_scale_keys   = sigma_scale_keys);
            T1Const(x,C,m,n,l);
            T2Const(x,C,m,n,l,Δ);
            T3Const(x,l)]

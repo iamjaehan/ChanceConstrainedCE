@@ -194,15 +194,15 @@ end
 %     "");
 % exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
 
-plot_scalability_overlay( ...
-    allRows, ...
-    struct("a",4:14,"sigma",0,"alpha",90), ...
-    ALG.CE_FULL, ALG.RRCE_PNE, ...
-    "wall_ms", "Computation time [s] (log)", "" ...
-);
-text(7,400,"Epoch duration (4 min)",'FontWeight','bold')
-set(gcf, 'Position', [1000 818 560  350]);
-exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
+% plot_scalability_overlay( ...
+%     allRows, ...
+%     struct("a",4:14,"sigma",0,"alpha",90), ...
+%     ALG.CE_FULL, ALG.RRCE_PNE, ...
+%     "wall_ms", "Computation time [s] (log)", "" ...
+% );
+% text(7,400,"Epoch duration (4 min)",'FontWeight','bold')
+% set(gcf, 'Position', [1000 818 560  350]);
+% exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
 
 %% ============================================================
 % 2) Efficiency-to-scale: obj for 6/0/90 vs 8/0/90, exclude CE_NAIVE
@@ -211,6 +211,7 @@ exportgraphics(gcf, "1_Scalability.pdf","Resolution",300);
 slice2 = allRows(allRows.coord_sigma==0 & allRows.alpha==90 & ismember(allRows.a,[4 5 6 7 8]), :);
 algs2 = unique(slice2.algorithm, 'stable');
 algs2(algs2 == ALG.CE_NAIVE) = [];
+algs2(algs2 == ALG.CENTRAL) = [];
 
 plot_box_byA2( ...
     allRows, struct("a",[4 5 6 7 8 9], "sigma",0, "alpha",90), ...
@@ -219,49 +220,49 @@ plot_box_byA2( ...
     "");
 set(gcf, 'Position', [1000 818 560  350]);
 exportgraphics(gcf, "2_OverallCost.pdf","Resolution",300);
-
-%% ==========
-% 3) Deviation rate [\%] by sigma
-% ============
-plot_errorbar_devfreq_bySigma( ...
-    allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
-    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "");
-set(gcf, 'Position', [1000 818 560  350]);
-exportgraphics(gcf, "3_devfreq_uncertainty.pdf","Resolution",300);
-
-%% ============================================================
-% 4) Efficiency-to-error: obj for 6/0/90, 6/10/90, 6/30/90
-% x: coord_sigma, y: obj, alg: FCFS, CE_NAIVE, RRCE_PNE
-% ============================================================
-plot_box_bySigma( ...
-    allRows, struct("a",6, "sigma",[0 5 20 45], "alpha",90), ...
-    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "Delay Cost", ...
-    "");
-set(gcf, 'Position', [1000 818 560  350]);
-exportgraphics(gcf, "4_eff_uncertainty.pdf","Resolution",300);
-
-%% ============================================================
-% 5) Efficiency vs confidence (alpha sweep)  [separate figure]
-% ============================================================
-temp = plot_box_byAlpha( ...
-    allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
-    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "obj", "Delay Cost", ...
-    "");
-set(gcf, 'Position', [1000 818 560  350]);
-exportgraphics(gcf, "eff_confidence.pdf","Resolution",300);
-
-%% ============================================================
-% 6) Deviation rate [\%] vs confidence (alpha sweep) [separate figure]
-% ============================================================
-plot_errorbar_devfreq_byAlpha( ...
-    allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
-    [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
-    "");
-set(gcf, 'Position', [1000 818 560  350]);
-exportgraphics(gcf, "devfreq_confidence.pdf","Resolution",300);
+% 
+% %% ==========
+% % 3) Deviation rate [\%] by sigma
+% % ============
+% plot_errorbar_devfreq_bySigma( ...
+%     allRows, struct("a",6,"sigma",[0 5 20 45],"alpha",90), ...
+%     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+%     "");
+% set(gcf, 'Position', [1000 818 560  350]);
+% exportgraphics(gcf, "3_devfreq_uncertainty.pdf","Resolution",300);
+% 
+% %% ============================================================
+% % 4) Efficiency-to-error: obj for 6/0/90, 6/10/90, 6/30/90
+% % x: coord_sigma, y: obj, alg: FCFS, CE_NAIVE, RRCE_PNE
+% % ============================================================
+% plot_box_bySigma( ...
+%     allRows, struct("a",6, "sigma",[0 5 20 45], "alpha",90), ...
+%     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+%     "obj", "Delay Cost", ...
+%     "");
+% set(gcf, 'Position', [1000 818 560  350]);
+% exportgraphics(gcf, "4_eff_uncertainty.pdf","Resolution",300);
+% 
+% %% ============================================================
+% % 5) Efficiency vs confidence (alpha sweep)  [separate figure]
+% % ============================================================
+% temp = plot_box_byAlpha( ...
+%     allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
+%     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+%     "obj", "Delay Cost", ...
+%     "");
+% set(gcf, 'Position', [1000 818 560  350]);
+% exportgraphics(gcf, "eff_confidence.pdf","Resolution",300);
+% 
+% %% ============================================================
+% % 6) Deviation rate [\%] vs confidence (alpha sweep) [separate figure]
+% % ============================================================
+% plot_errorbar_devfreq_byAlpha( ...
+%     allRows, struct("a",6,"sigma",20,"alpha",[30 50 75 90 95 99]), ...
+%     [ALG.CE_FULL, ALG.CE_NAIVE, ALG.RRCE_PNE], ...
+%     "");
+% set(gcf, 'Position', [1000 818 560  350]);
+% exportgraphics(gcf, "devfreq_confidence.pdf","Resolution",300);
 
 %% ============================================================
 % ==================== Local functions ========================
@@ -770,11 +771,12 @@ function overlay_group_median_star(ax, xcat, y, nGroups, iGroup, c)
     % iGroup:  1..nGroups (order consistent with categories used in GroupByColor)
     % c:       RGB color for the star marker (e.g., COL(alg))
 
-    dx = 0.372 * ( (2*iGroup - (nGroups+1)) / max(1,(nGroups-1)) ); % symmetric offsets
+    % dx = 0.372 * ( (2*iGroup - (nGroups+1)) / max(1,(nGroups-1)) ); % symmetric offsets
+    dx = 0.335 * ( (2*iGroup - (nGroups+1)) / max(1,(nGroups-1)) ); % symmetric offsets
 
     % median per x category
     [g, xlev] = findgroups(xcat);
-    med = splitapply(@median, y, g);
+    med = splitapply(@mean, y, g);
 
     xCenters = double(xlev) + dx;
 
