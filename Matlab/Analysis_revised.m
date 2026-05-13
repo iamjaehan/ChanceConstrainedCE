@@ -169,7 +169,7 @@ ylim(ax_r, [0  Inf]);
 % Link x-axes so zoom/pan stays in sync
 linkaxes([ax_l ax_r], 'x');
 
-set(gcf,'Position',[1000 818 650 350])
+set(gcf,'Position',[1000 818 650 300])
 lg = legend(ax_l, [h_exp h_real h_dev], ...
     {'Norm. expected cost', 'Norm. realized cost', 'Deviation rate'}, ...
     'Location', 'east', 'FontName', 'Times New Roman', 'FontSize', 23, ...
@@ -373,10 +373,82 @@ ylabel(ax3, 'Standardized score', 'FontName', 'Times New Roman', 'FontSize', 23)
 xlim(ax3, [0.5  nH + 0.5]);
 grid(ax3, 'on');  box(ax3, 'on');
 
-set(gcf,'Position',[1000 818 650 350])
-ylim([-0.1 inf])
+set(gcf,'Position',[1000 818 650 300])
+ylim([-0.1 1.1])
 lg = legend(ax3, h_gamma3, gamma_labels, ...
     'Location', 'southwest', 'FontName', 'Times New Roman', 'FontSize', 23, ...
     'Interpreter', 'tex');
 lg.Position(2) = lg.Position(2) + 0.1;
 exportgraphics(fig3, 'exp3_results.pdf', 'Resolution', 300);
+
+% =============================================================================
+%% EXPERIMENT 2 — Figure 4: Half strategies, baseline-only normalization
+% =============================================================================
+
+% Recompute data with baseline normalization (val / Baseline, no min subtraction)
+data_exp_e2_bl  = cell(nM, nG);
+for ki = 1:nM
+    for kj = 1:nG
+        idx = (methods_e2 == method_order(ki)) & (gammas_e2 == unique_gammas(kj));
+        ec  = exp_cost_e2(idx);
+        trial_ids = trials_e2(idx);
+        for t = unique(trial_ids)'
+            tidx_all = (gammas_e2 == unique_gammas(kj)) & (trials_e2 == t);
+            base_idx = tidx_all & (methods_e2 == "Baseline");
+            base_exp = exp_cost_e2(base_idx);
+            if isempty(base_exp) || base_exp == 0; continue; end
+            t_loc = (trial_ids == t);
+            ec(t_loc) = ec(t_loc) ./ base_exp;
+        end
+        data_exp_e2_bl{ki,kj} = ec(~isnan(ec));
+    end
+end
+
+fig4 = figure('Name', 'Exp2-Half-BL', 'Position', [200 50 900 550]);
+ax4  = axes(fig4);
+hold(ax4, 'on');
+
+cmap_e4  = lines(nG);
+h_gamma4 = gobjects(nG, 1);
+xs4 = 1:nH;
+
+for kj = 1:nG
+    c  = cmap_e4(kj, :);
+    mk = markers{mod(kj-1, numel(markers)) + 1};
+
+    mu_vals = zeros(1, nH);
+    ci_vals = zeros(1, nH);
+    for ki = 1:nH
+        v = data_exp_e2_bl{half_idx(ki), kj};
+        v = sort(v(~isnan(v)));
+        mu_vals(ki) = median(v);
+        ci_vals(ki) = (quantile(v, 0.75) - quantile(v, 0.25)) / 2;
+    end
+
+    fill(ax4, [xs4 fliplr(xs4)], ...
+        [mu_vals+ci_vals fliplr(mu_vals-ci_vals)], ...
+        c, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
+
+    h_gamma4(kj) = plot(ax4, xs4, mu_vals, ['-' mk], 'Color', c, ...
+        'LineWidth', 2, 'MarkerSize', 7, ...
+        'MarkerFaceColor', c, 'MarkerEdgeColor', 'k');
+end
+
+yline(ax4, 1.0, '--k', 'LineWidth', 2, 'Alpha', 0.5);
+
+set(ax4, 'XTick', xs4, 'XTickLabel', {}, ...
+    'FontName', 'Times New Roman', 'FontSize', 23);
+
+ylabel(ax4, 'Normalized cost', 'FontName', 'Times New Roman', 'FontSize', 23);
+
+xlim(ax4, [0.5  nH + 0.5]);
+set(ax4, 'YScale', 'log');
+grid(ax4, 'on');  box(ax4, 'on');
+
+set(gcf, 'Position', [1000 818 650 300])
+lg = legend(ax4, h_gamma4, gamma_labels, ...
+    'Location', 'southwest', 'FontName', 'Times New Roman', 'FontSize', 23, ...
+    'Interpreter', 'tex');
+lg.Position(2) = lg.Position(2) + 0.1;
+grid on
+exportgraphics(fig4, 'exp4_results.pdf', 'Resolution', 300);

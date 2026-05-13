@@ -31,7 +31,7 @@ const E2_N      = 3
 const E2_LAMBDA = ones(E2_N)
 const E2_DELTA  = 1.0
 const E2_ALPHA  = 0.9
-const E2_GAMMAS = [1.3, 1.5, 2.0]
+const E2_GAMMAS = [1.3, 1.5, 1.8, 2.0]
 const E2_K           = 5    # number of constraints to de-noise per strategy
 const E2_SCALE_FULL  = 0.0  # full uncertainty removal
 const E2_SCALE_HALF  = 0.5  # partial uncertainty removal
@@ -160,4 +160,4 @@ function run_exp2(;
 end
 
 # ── Entry point ──────────────────────────────────────────────────────────────
-# rows = run_exp2(n_trials = 10, noise_runs = 200)
+# rows = run_exp2(n_trials = 10, noise_runs = 10)

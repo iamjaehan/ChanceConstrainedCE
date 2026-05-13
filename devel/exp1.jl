@@ -21,7 +21,7 @@ const E1_N      = 3
 const E1_GAMMA  = 2.0          # congestion multiplier γ
 const E1_LAMBDA = ones(E1_N)
 const E1_DELTA  = 1.0
-const E1_ALPHAS = [0.0, 0.66, 0.85, 0.90, 0.95, 0.99]
+const E1_ALPHAS = [0.0, 0.66, 0.80, 0.90, 0.95, 0.99]
 
 # ── Main experiment ──────────────────────────────────────────────────────────
 
@@ -136,4 +136,4 @@ function run_exp1(;
 end
 
 # ── Entry point ──────────────────────────────────────────────────────────────
-# rows = run_exp1(n_trials = 10, noise_runs = 200)
+# rows = run_exp1(n_trials = 10, noise_runs = 10)
