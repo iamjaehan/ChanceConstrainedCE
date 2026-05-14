@@ -21,7 +21,7 @@ const E1_N      = 3
 const E1_GAMMA  = 2.0          # congestion multiplier γ
 const E1_LAMBDA = ones(E1_N)
 const E1_DELTA  = 1.0
-const E1_ALPHAS = [0.0, 0.66, 0.80, 0.90, 0.95, 0.99]
+const E1_ALPHAS = [0.0, 0.66, 0.80, 0.90, 0.95, 0.99, 0.999]
 
 # ── Main experiment ──────────────────────────────────────────────────────────
 
