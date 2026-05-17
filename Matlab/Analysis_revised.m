@@ -10,9 +10,9 @@ clear; clc; close all;
 set(groot, 'defaultTextInterpreter',          'tex');
 set(groot, 'defaultAxesTickLabelInterpreter', 'tex');
 set(groot, 'defaultLegendInterpreter',        'tex');
-set(groot, 'defaultAxesFontSize',    23);
-set(groot, 'defaultTextFontSize',    23);
-set(groot, 'defaultLegendFontSize',  23);
+set(groot, 'defaultAxesFontSize',    21);
+set(groot, 'defaultTextFontSize',    21);
+set(groot, 'defaultLegendFontSize',  21);
 set(groot, 'defaultAxesLineWidth',   1.2);
 set(groot, 'defaultLineLineWidth',   1.5);
 set(groot, 'defaultFigureColor',     'w');
@@ -23,7 +23,7 @@ set(groot, 'defaultTextFontName',    'Times New Roman');
 % CONFIG  (toggle here as needed)
 % ─────────────────────────────────────────────────────────────────────────────
 
-% Deviation metric:
+% Deviation metric:e
 %   'deviation_rate'     → fraction of rollouts with ≥1 deviation
 %   'mean_num_deviators' → average # agents deviating per rollout
 DEV_METRIC = 'deviation_rate';
@@ -75,9 +75,11 @@ for k = 1:nA
 end
 
 % Collect per-method data vectors, normalized by NaiveCE within each trial
-data_exp_e1  = cell(nA, 1);
-data_real_e1 = cell(nA, 1);
-data_dev_e1  = cell(nA, 1);
+data_exp_e1      = cell(nA, 1);
+data_real_e1     = cell(nA, 1);
+data_dev_e1      = cell(nA, 1);
+data_exp_e1_raw  = cell(nA, 1);   % unnormalized
+data_real_e1_raw = cell(nA, 1);   % unnormalized
 
 for k = 1:nA
     idx = (alphas_e1 == unique_alphas(k));
@@ -85,6 +87,10 @@ for k = 1:nA
     ec = exp_cost_e1(idx);
     rm = real_mean_e1(idx);
     dv = dev_vals_e1(idx);
+
+    % Store raw values before normalization
+    data_exp_e1_raw{k}  = ec(~isnan(ec));
+    data_real_e1_raw{k} = rm(~isnan(rm));
 
     % Normalize expected/realized cost by NaiveCE value within same trial
     trial_ids = trials_e1(idx);
@@ -115,9 +121,13 @@ mu_exp  = cellfun(@(v) mean(v(~isnan(v))), data_exp_e1)';
 mu_real = cellfun(@(v) mean(v(~isnan(v))), data_real_e1)';
 mu_dev  = cellfun(@(v) mean(v(~isnan(v))), data_dev_e1)';
 
-se_exp  = cellfun(@(v) 1.96 * std(v(~isnan(v))) / sqrt(sum(~isnan(v))), data_exp_e1)';
-se_real = cellfun(@(v) 1.96 * std(v(~isnan(v))) / sqrt(sum(~isnan(v))), data_real_e1)';
-se_dev  = cellfun(@(v) 1.96 * std(v(~isnan(v))) / sqrt(sum(~isnan(v))), data_dev_e1)';
+% se_exp  = cellfun(@(v) 1.96 * std(v(~isnan(v))) / sqrt(sum(~isnan(v))), data_exp_e1)';
+% se_real = cellfun(@(v) 1.96 * std(v(~isnan(v))) / sqrt(sum(~isnan(v))), data_real_e1)';
+% se_dev  = cellfun(@(v) 1.96 * std(v(~isnan(v))) / sqrt(sum(~isnan(v))), data_dev_e1)';
+
+se_exp  = cellfun(@(v) 1.96 * std(v(~isnan(v))), data_exp_e1)';
+se_real = cellfun(@(v) 1.96 * std(v(~isnan(v))), data_real_e1)';
+se_dev  = cellfun(@(v) 1.96 * std(v(~isnan(v))), data_dev_e1)';
 
 xs = 1:nA;
 
@@ -140,8 +150,8 @@ h_real = plot(ax_l, xs, mu_real, '-s', 'Color', colorReal, ...
 yline(ax_l, 1.0, '--k', 'LineWidth', 2.0, 'Alpha', 0.5);
 
 set(ax_l, 'XTick', xs, 'XTickLabel', {}, ...
-    'FontName', 'Times New Roman', 'FontSize', 23);
-ylabel(ax_l, 'Normalized cost', 'FontName', 'Times New Roman', 'FontSize', 23);
+    'FontName', 'Times New Roman', 'FontSize', 21);
+ylabel(ax_l, 'Normalized cost', 'FontName', 'Times New Roman', 'FontSize', 21);
 xlim(ax_l, [0.5  nA + 0.5]);
 ylim(ax_l, [0.5  Inf]);
 grid(ax_l, 'on');  box(ax_l, 'on');
@@ -149,7 +159,7 @@ grid(ax_l, 'on');  box(ax_l, 'on');
 % Right y-axis for deviation rate
 ax_r = axes(fig1, 'Position', ax_l.Position, ...
     'YAxisLocation', 'right', 'Color', 'none', ...
-    'FontName', 'Times New Roman', 'FontSize', 23);
+    'FontName', 'Times New Roman', 'FontSize', 21);
 ax_r.XTick = [];
 hold(ax_r, 'on');
 
@@ -162,7 +172,7 @@ h_dev = plot(ax_r, xs, mu_dev, '-^', 'Color', colorDev, ...
     'MarkerFaceColor', colorDev, 'MarkerEdgeColor', 'k');
 
 ax_r.YAxis.Color = colorDev;
-ylabel(ax_r, 'Deviation rate', 'FontName', 'Times New Roman', 'FontSize', 23, 'Color', colorDev);
+ylabel(ax_r, 'Deviation rate', 'FontName', 'Times New Roman', 'FontSize', 21, 'Color', colorDev);
 xlim(ax_r, [0.5  nA + 0.5]);
 ylim(ax_r, [0  Inf]);
 
@@ -171,12 +181,78 @@ linkaxes([ax_l ax_r], 'x');
 
 set(gcf,'Position',[1000 818 650 300])
 lg = legend(ax_l, [h_exp h_real h_dev], ...
-    {'Norm. expected cost', 'Norm. realized cost', 'Deviation rate'}, ...
-    'Location', 'east', 'FontName', 'Times New Roman', 'FontSize', 23, ...
+    {'Nominal cost', 'Realized cost', 'Deviation rate'}, ...
+    'Location', 'east', 'FontName', 'Times New Roman', 'FontSize', 20, ...
     'Interpreter', 'tex');
-lg.Position(2) = lg.Position(2) + 0.03;
+lg.Position(1) = lg.Position(1) - 0.06;
+lg.Position(2) = lg.Position(2) - 0.015;
 
 exportgraphics(fig1, 'exp1_results.pdf', 'Resolution', 300);
+
+% ── Figure 1b: same layout but with raw (unnormalized) cost values ────────────
+fig1b  = figure('Name', 'Exp1-Raw', 'Position', [50 50 900 550]);
+ax_l1b = axes(fig1b);
+
+data_exp_e1_raw = cellfun(@(v) v(~isnan(v))./60, data_exp_e1_raw, 'UniformOutput', false);
+data_real_e1_raw = cellfun(@(v) v(~isnan(v))./60, data_real_e1_raw, 'UniformOutput', false);
+mu_exp_r  = cellfun(@(v) mean(v(~isnan(v))), data_exp_e1_raw)';
+mu_real_r = cellfun(@(v) mean(v(~isnan(v))), data_real_e1_raw)';
+se_exp_r  = cellfun(@(v) 1.96 * std(v(~isnan(v))), data_exp_e1_raw)';
+se_real_r = cellfun(@(v) 1.96 * std(v(~isnan(v))), data_real_e1_raw)';
+
+hold(ax_l1b, 'on');
+
+fill(ax_l1b, [xs fliplr(xs)], ...
+    [mu_exp_r+se_exp_r fliplr(mu_exp_r-se_exp_r)], ...
+    colorExp, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
+fill(ax_l1b, [xs fliplr(xs)], ...
+    [mu_real_r+se_real_r fliplr(mu_real_r-se_real_r)], ...
+    colorReal, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
+
+h_exp_r  = plot(ax_l1b, xs, mu_exp_r,  '-o', 'Color', colorExp,  ...
+    'LineWidth', 2, 'MarkerSize', 7, ...
+    'MarkerFaceColor', colorExp,  'MarkerEdgeColor', 'k');
+h_real_r = plot(ax_l1b, xs, mu_real_r, '-s', 'Color', colorReal, ...
+    'LineWidth', 2, 'MarkerSize', 7, ...
+    'MarkerFaceColor', colorReal, 'MarkerEdgeColor', 'k');
+
+set(ax_l1b, 'XTick', xs, 'XTickLabel', {}, ...
+    'FontName', 'Times New Roman', 'FontSize', 21);
+ylabel(ax_l1b, 'Cost', 'FontName', 'Times New Roman', 'FontSize', 21);
+xlim(ax_l1b, [0.5  nA + 0.5]);
+ylim(ax_l1b, [0  Inf]);
+grid(ax_l1b, 'on');  box(ax_l1b, 'on');
+
+ax_r1b = axes(fig1b, 'Position', ax_l1b.Position, ...
+    'YAxisLocation', 'right', 'Color', 'none', ...
+    'FontName', 'Times New Roman', 'FontSize', 21);
+ax_r1b.XTick = [];
+hold(ax_r1b, 'on');
+
+fill(ax_r1b, [xs fliplr(xs)], ...
+    [mu_dev+se_dev fliplr(mu_dev-se_dev)], ...
+    colorDev, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
+
+h_dev_r = plot(ax_r1b, xs, mu_dev, '-^', 'Color', colorDev, ...
+    'LineWidth', 2, 'MarkerSize', 7, ...
+    'MarkerFaceColor', colorDev, 'MarkerEdgeColor', 'k');
+
+ax_r1b.YAxis.Color = colorDev;
+ylabel(ax_r1b, 'Deviation rate', 'FontName', 'Times New Roman', 'FontSize', 21, 'Color', colorDev);
+xlim(ax_r1b, [0.5  nA + 0.5]);
+ylim(ax_r1b, [0  Inf]);
+
+linkaxes([ax_l1b ax_r1b], 'x');
+
+set(fig1b, 'Position', [1000 818 650 300])
+lg1b = legend(ax_l1b, [h_exp_r h_real_r h_dev_r], ...
+    {'Nominal cost', 'Realized cost', 'Deviation rate'}, ...
+    'Location', 'southeast', 'FontName', 'Times New Roman', 'FontSize', 20, ...
+    'Interpreter', 'tex');
+% lg1b.Position(1) = lg1b.Position(1) - 0.06;
+lg1b.Position(2) = lg1b.Position(2) + 0.11;
+
+exportgraphics(fig1b, 'exp1_results_raw.pdf', 'Resolution', 300);
 
 % =============================================================================
 %% EXPERIMENT 2 — InfoGain strategy comparison across γ values
@@ -366,9 +442,9 @@ if strcmp(NORMALIZE_E2, 'minmax')
 end
 
 set(ax3, 'XTick', [], ...
-    'FontName', 'Times New Roman', 'FontSize', 23);
+    'FontName', 'Times New Roman', 'FontSize', 21);
 
-ylabel(ax3, 'Standardized score', 'FontName', 'Times New Roman', 'FontSize', 23);
+ylabel(ax3, 'Standardized score', 'FontName', 'Times New Roman', 'FontSize', 21);
 
 xlim(ax3, [0.5  nH + 0.5]);
 grid(ax3, 'on');  box(ax3, 'on');
@@ -376,7 +452,7 @@ grid(ax3, 'on');  box(ax3, 'on');
 set(gcf,'Position',[1000 818 650 300])
 ylim([-0.1 1.1])
 lg = legend(ax3, h_gamma3, gamma_labels, ...
-    'Location', 'southwest', 'FontName', 'Times New Roman', 'FontSize', 23, ...
+    'Location', 'southwest', 'FontName', 'Times New Roman', 'FontSize', 21, ...
     'Interpreter', 'tex');
 lg.Position(2) = lg.Position(2) + 0.1;
 exportgraphics(fig3, 'exp3_results.pdf', 'Resolution', 300);
@@ -437,9 +513,9 @@ end
 yline(ax4, 1.0, '--k', 'LineWidth', 2, 'Alpha', 0.5);
 
 set(ax4, 'XTick', xs4, 'XTickLabel', {}, ...
-    'FontName', 'Times New Roman', 'FontSize', 23);
+    'FontName', 'Times New Roman', 'FontSize', 21);
 
-ylabel(ax4, 'Normalized cost', 'FontName', 'Times New Roman', 'FontSize', 23);
+ylabel(ax4, 'Normalized cost', 'FontName', 'Times New Roman', 'FontSize', 21);
 
 xlim(ax4, [0.5  nH + 0.5]);
 set(ax4, 'YScale', 'log');
@@ -447,7 +523,7 @@ grid(ax4, 'on');  box(ax4, 'on');
 
 set(gcf, 'Position', [1000 818 650 300])
 lg = legend(ax4, h_gamma4, gamma_labels, ...
-    'Location', 'southwest', 'FontName', 'Times New Roman', 'FontSize', 23, ...
+    'Location', 'southwest', 'FontName', 'Times New Roman', 'FontSize', 21, ...
     'Interpreter', 'tex');
 lg.Position(2) = lg.Position(2) + 0.1;
 grid on
