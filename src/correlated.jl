@@ -1,5 +1,12 @@
 module correlated
 
+# The module re-includes several devel/*.jl files a second time via
+# init.jl -> exp1.jl/exp2.jl (each of which also does `using correlated`
+# and its own top-level `include(...)` of files already pulled in above).
+# That duplicate-definition pattern is fine for interactive/script use but
+# is a hard error under Julia's module precompilation, so opt out of it.
+__precompile__(false)
+
 using Symbolics: Symbolics, @variables
 using ParametricMCPs: ParametricMCPs, ParametricMCP
 using BlockArrays: BlockArray, Block, mortar, blocks
@@ -21,6 +28,16 @@ include("../devel/SearchNashBrute.jl")
 export SearchNashBrute
 include("../devel/BruteNashBasedOptimizer.jl")
 export BruteNashBasedOptimizer, SolveNashBrute
+include("../devel/ReducedActionSet.jl")
+export BuildRunwayActionSet, ExclusiveJointSet, IsCCPNEProfile, CheckExclusiveSetCCPNE,
+       CalcIndividualJReduced, CalcJReduced, EvalFairnessReduced, EvalGiniReduced,
+       CalcHReducedSet, ReducedPacker, SearchCorrReduced
+include("../devel/CorrLP.jl")
+export SearchCorrLP, SearchCorrReducedLP, BruteNashBasedOptimizerLP
+include("../devel/VertiportGame.jl")
+export VertiportCost, OccupancyVec, NvVector, IsCCPNEProfileVertiport, FindAllCCPNEVertiport,
+       CheckExclusiveSetCCPNEVertiport, SearchCorrLPVertiport, SearchCorrReducedLPVertiport,
+       BruteNashBasedOptimizerLPVertiport, HullLPOverCandidateSet
 include("../VQSim/actions.jl")
 include("../VQSim/costs.jl")
 include("../VQSim/schedule.jl")

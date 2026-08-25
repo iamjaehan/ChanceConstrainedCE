@@ -92,7 +92,8 @@ function SolveNashBrute(C, m, n; zalpha = 0.0, sigma = 0.0)
             aSeq = NashIdxList
         end
 
-        kappa = zalpha * sigma
+        sigma_i = isa(sigma, Number) ? sigma : sigma[i]
+        kappa = zalpha * sigma_i
         NashIdxList = ExtractUAPNE(aSeq, i, C, m, n, kappa)
     end
 
