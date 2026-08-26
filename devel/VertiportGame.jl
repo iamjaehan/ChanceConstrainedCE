@@ -279,6 +279,71 @@ function BruteNashBasedOptimizerLPVertiport(r::Int, n::Int, γ::Real, Δ;
 end
 
 # -----------------------------------------------------------------------------
+# CC-PNE hull with NO equilibrium search at all.
+#
+# Proposition 1 of the reduced-joint-action note gives a closed-form certificate
+#   q_α σ_i <= unit·min{1, γ−1}   for every i
+# under which EVERY x ∈ F is a CC-PNE. When it holds there is nothing to search
+# and nothing to verify: take P_d = F directly and solve the hull LP. The whole
+# equilibrium-generation step collapses to n scalar comparisons, independent of
+# both |X| = m^n and |F| = n^r.
+#
+# This is available only in the certified regime. Under partial certification the
+# bound fails and only a subset of F is CC-PNE, so the per-profile check of
+# HullLPOverCandidateSet is required instead -- hence the explicit error rather
+# than a silent fallback.
+# -----------------------------------------------------------------------------
+function CertificateBound(γ::Real; unit::Real = 5.0)
+    return unit * min(1.0, γ - 1.0)
+end
+
+function HullLPDirect(r::Int, n::Int, γ::Real, Δ;
+                      zalpha::Real, sigma, unit::Real = 5.0,
+                      optimizer = Ipopt.Optimizer, verbose = false)
+    σi(i) = isa(sigma, Number) ? sigma : sigma[i]
+
+    # The entire "search": n scalar comparisons against the Proposition 1 bound.
+    t_search = @elapsed begin
+        bound = CertificateBound(γ; unit = unit)
+        certified = all(zalpha * σi(i) <= bound for i in 1:n)
+    end
+    certified || error("Proposition 1 certificate fails (q_α σ > $(CertificateBound(γ; unit=unit))); " *
+                       "F is not uniformly CC-PNE, so the search cannot be skipped. " *
+                       "Use HullLPOverCandidateSet, which verifies each candidate.")
+
+    actionSet = BuildRunwayActionSet(r)
+    m = length(actionSet)
+    pneList, _ = ExclusiveJointSet(r, n)     # P_d = F, no membership check
+    d = length(pneList)
+    println("Certificate holds (q_α σ <= $(CertificateBound(γ; unit=unit))); taking P_d = F with $d profiles, no search.")
+
+    model = Model(optimizer)
+    verbose || set_silent(model)
+
+    scoreSet = Matrix{Float64}(undef, d, n)
+    buildTime = @elapsed begin
+        for k in 1:d, i in 1:n
+            scoreSet[k, i] = VertiportCost(i, collect(pneList[k]), actionSet, r, γ; unit = unit)
+        end
+        @variable(model, λv[1:d] >= 0)
+        @constraint(model, sum(λv) == 1)
+        c_exprs = [@expression(model, sum(scoreSet[k, i] * λv[k] for k in 1:d)) for i in 1:n]
+        @objective(model, Min, _fairness_objective!(model, c_exprs, n, Δ))
+    end
+
+    solverTime = @elapsed optimize!(model)
+    status = termination_status(model)
+    λval = value.(λv)
+    cvals = [sum(scoreSet[k, i] * λval[k] for k in 1:d) for i in 1:n]
+    score = sum(cvals)
+    fairScore = abs(maximum(cvals) - minimum(cvals)) / Δ
+    giniScore = sum(abs(cvals[i] - cvals[j]) for i in 1:n-1 for j in i+1:n) / (2 * mean(cvals) * n^2)
+
+    (; λ = λval, pneList, scoreSet, score, avgDelayScore = score / n, fairScore, giniScore,
+       d, varsize = d + n + 1, searchTime = t_search, buildTime, solverTime, status, m, n, actionSet, model)
+end
+
+# -----------------------------------------------------------------------------
 # CC-PNE hull, restricted to a candidate universe Sset (default: the
 # exclusive-occupancy set F) instead of the full |X| = m^n joint action space.
 # Still VERIFIES each candidate's CC-PNE membership (never skipped -- that

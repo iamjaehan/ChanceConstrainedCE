@@ -49,50 +49,45 @@ function SearchCorrLP(r::Int, n::Int, λ, Δ;
     model = Model(optimizer)
     verbose || set_silent(model)
 
-    @variable(model, z[1:l] >= 0)
-    @constraint(model, sum(z) == 1)
+    local Ci_of_k
+    buildTime = @elapsed begin
+        @variable(model, z[1:l] >= 0)
+        @constraint(model, sum(z) == 1)
 
-    # ---- CE / CC-CE deviation constraints (same math as CalcH) ----
-    for i in 1:n
-        for ai in 1:m
-            idxs = [LI[ci] for ci in CI if ci[i] == ai]
-            isempty(idxs) && continue
-            p_ai = sum(z[k] for k in idxs)
+        # ---- CE / CC-CE deviation constraints (same math as CalcH) ----
+        for i in 1:n
+            for ai in 1:m
+                idxs = [LI[ci] for ci in CI if ci[i] == ai]
+                isempty(idxs) && continue
+                p_ai = sum(z[k] for k in idxs)
 
-            for aibar in 1:m
-                ai == aibar && continue
-                dev_sum = zero(AffExpr)
-                for k in idxs
-                    a = collect(Tuple(CI[k]))
-                    c_follow = J_def(i, a, C)
-                    a_dev = copy(a); a_dev[i] = aibar
-                    c_dev = J_def(i, a_dev, C)
-                    add_to_expression!(dev_sum, c_dev - c_follow, z[k])
+                for aibar in 1:m
+                    ai == aibar && continue
+                    dev_sum = zero(AffExpr)
+                    for k in idxs
+                        a = collect(Tuple(CI[k]))
+                        c_follow = J_def(i, a, C)
+                        a_dev = copy(a); a_dev[i] = aibar
+                        c_dev = J_def(i, a_dev, C)
+                        add_to_expression!(dev_sum, c_dev - c_follow, z[k])
+                    end
+                    @constraint(model, dev_sum - zalpha * σi(i) * p_ai >= 0)
                 end
-                @constraint(model, dev_sum - zalpha * σi(i) * p_ai >= 0)
             end
         end
-    end
 
-    # ---- per-player expected cost c_i(z), precomputed cost lookup ----
-    Ci_of_k = [J_def(i, collect(Tuple(CI[k])), C) for i in 1:n, k in 1:l]  # (n x l)
-    c_expr(i) = @expression(model, sum(Ci_of_k[i, k] * z[k] for k in 1:l))
+        # ---- per-player expected cost c_i(z), precomputed cost lookup ----
+        Ci_of_k = [J_def(i, collect(Tuple(CI[k])), C) for i in 1:n, k in 1:l]  # (n x l)
 
-    if objective == :aggregate
-        total_of_k = [sum(Ci_of_k[i, k] for i in 1:n) for k in 1:l]
-        @objective(model, Min, sum(total_of_k[k] * z[k] for k in 1:l))
-    elseif objective == :fair
-        @variable(model, v[1:n])
-        @variable(model, w)
-        for i in 1:n
-            ci = c_expr(i)
-            @constraint(model, w >= ci)
-            @constraint(model, v[i] >= ci + Δ)
-            @constraint(model, v[i] >= w)
+        if objective == :aggregate
+            total_of_k = [sum(Ci_of_k[i, k] for i in 1:n) for k in 1:l]
+            @objective(model, Min, sum(total_of_k[k] * z[k] for k in 1:l))
+        elseif objective == :fair
+            c_exprs = [@expression(model, sum(Ci_of_k[i, k] * z[k] for k in 1:l)) for i in 1:n]
+            @objective(model, Min, _fairness_objective!(model, c_exprs, n, Δ))
+        else
+            error("objective must be :aggregate or :fair")
         end
-        @objective(model, Min, sum(v) - n * Δ)
-    else
-        error("objective must be :aggregate or :fair")
     end
 
     solverTime = @elapsed optimize!(model)
@@ -106,7 +101,7 @@ function SearchCorrLP(r::Int, n::Int, λ, Δ;
     giniScore = sum(abs(cvals[i] - cvals[j]) for i in 1:n-1 for j in i+1:n) / (2 * mean(cvals) * n^2)
 
     (; primals = zval, z = zval, score, avgDelayScore, fairScore, giniScore,
-       varsize = l, solverTime, status, m, n, l, C, model)
+       varsize = l, buildTime, solverTime, status, m, n, l, C, model)
 end
 
 # -----------------------------------------------------------------------------
@@ -150,48 +145,51 @@ function SearchCorrReducedLP(r::Int, n::Int, λ, Δ, Sset = nothing;
     model = Model(optimizer)
     verbose || set_silent(model)
 
-    @variable(model, z[1:d] >= 0)
-    @constraint(model, sum(z) == 1)
+    local Ci_of_k
+    buildTime = @elapsed begin
+        @variable(model, z[1:d] >= 0)
+        @constraint(model, sum(z) == 1)
 
-    idx_by_i_ai = [[Int[] for _ in 1:m] for _ in 1:n]
-    for k in 1:d
-        a = Sset[k]
-        for i in 1:n
-            push!(idx_by_i_ai[i][a[i]], k)
-        end
-    end
-
-    for i in 1:n
-        for ai in 1:m
-            ks = idx_by_i_ai[i][ai]
-            isempty(ks) && continue
-            p_ai = sum(z[k] for k in ks)
-
-            for aibar in 1:m
-                ai == aibar && continue
-                dev_sum = zero(AffExpr)
-                for k in ks
-                    a = collect(Sset[k])
-                    c_follow = J_def(i, a, C)
-                    a_dev = copy(a); a_dev[i] = aibar
-                    c_dev = J_def(i, a_dev, C)
-                    add_to_expression!(dev_sum, c_dev - c_follow, z[k])
-                end
-                @constraint(model, dev_sum - zalpha * σi(i) * p_ai >= 0)
+        idx_by_i_ai = [[Int[] for _ in 1:m] for _ in 1:n]
+        for k in 1:d
+            a = Sset[k]
+            for i in 1:n
+                push!(idx_by_i_ai[i][a[i]], k)
             end
         end
-    end
 
-    Ci_of_k = [J_def(i, collect(Sset[k]), C) for i in 1:n, k in 1:d]
+        for i in 1:n
+            for ai in 1:m
+                ks = idx_by_i_ai[i][ai]
+                isempty(ks) && continue
+                p_ai = sum(z[k] for k in ks)
 
-    if objective == :aggregate
-        total_of_k = [sum(Ci_of_k[i, k] for i in 1:n) for k in 1:d]
-        @objective(model, Min, sum(total_of_k[k] * z[k] for k in 1:d))
-    elseif objective == :fair
-        c_exprs = [@expression(model, sum(Ci_of_k[i, k] * z[k] for k in 1:d)) for i in 1:n]
-        @objective(model, Min, _fairness_objective!(model, c_exprs, n, Δ))
-    else
-        error("objective must be :aggregate or :fair")
+                for aibar in 1:m
+                    ai == aibar && continue
+                    dev_sum = zero(AffExpr)
+                    for k in ks
+                        a = collect(Sset[k])
+                        c_follow = J_def(i, a, C)
+                        a_dev = copy(a); a_dev[i] = aibar
+                        c_dev = J_def(i, a_dev, C)
+                        add_to_expression!(dev_sum, c_dev - c_follow, z[k])
+                    end
+                    @constraint(model, dev_sum - zalpha * σi(i) * p_ai >= 0)
+                end
+            end
+        end
+
+        Ci_of_k = [J_def(i, collect(Sset[k]), C) for i in 1:n, k in 1:d]
+
+        if objective == :aggregate
+            total_of_k = [sum(Ci_of_k[i, k] for i in 1:n) for k in 1:d]
+            @objective(model, Min, sum(total_of_k[k] * z[k] for k in 1:d))
+        elseif objective == :fair
+            c_exprs = [@expression(model, sum(Ci_of_k[i, k] * z[k] for k in 1:d)) for i in 1:n]
+            @objective(model, Min, _fairness_objective!(model, c_exprs, n, Δ))
+        else
+            error("objective must be :aggregate or :fair")
+        end
     end
 
     solverTime = @elapsed optimize!(model)
@@ -205,7 +203,7 @@ function SearchCorrReducedLP(r::Int, n::Int, λ, Δ, Sset = nothing;
     giniScore = sum(abs(cvals[i] - cvals[j]) for i in 1:n-1 for j in i+1:n) / (2 * mean(cvals) * n^2)
 
     (; primals = zval, z = zval, Sset, score, avgDelayScore, fairScore, giniScore,
-       d, varsize = d, solverTime, status, m, n, C, model)
+       d, varsize = d, buildTime, solverTime, status, m, n, C, model)
 end
 
 # -----------------------------------------------------------------------------
@@ -230,16 +228,19 @@ function BruteNashBasedOptimizerLP(r::Int, n::Int, λ, Δ;
     d == 0 && error("No CC-PNE found at this (zalpha, sigma, mult); cannot build convex-hull LP.")
     println("$d CC-PNE found in $(round(t_search, digits=3))s. Solving hull LP.")
 
-    scoreSet = [J_def(i, collect(nashIdxList[k]), C) for k in 1:d, i in 1:n]  # (d x n)
-
     model = Model(optimizer)
     verbose || set_silent(model)
 
-    @variable(model, λv[1:d] >= 0)
-    @constraint(model, sum(λv) == 1)
+    local scoreSet
+    buildTime = @elapsed begin
+        scoreSet = [J_def(i, collect(nashIdxList[k]), C) for k in 1:d, i in 1:n]  # (d x n)
 
-    c_exprs = [@expression(model, sum(scoreSet[k, i] * λv[k] for k in 1:d)) for i in 1:n]
-    @objective(model, Min, _fairness_objective!(model, c_exprs, n, Δ))
+        @variable(model, λv[1:d] >= 0)
+        @constraint(model, sum(λv) == 1)
+
+        c_exprs = [@expression(model, sum(scoreSet[k, i] * λv[k] for k in 1:d)) for i in 1:n]
+        @objective(model, Min, _fairness_objective!(model, c_exprs, n, Δ))
+    end
 
     solverTime = @elapsed optimize!(model)
     status = termination_status(model)
@@ -252,5 +253,5 @@ function BruteNashBasedOptimizerLP(r::Int, n::Int, λ, Δ;
     giniScore = sum(abs(cvals[i] - cvals[j]) for i in 1:n-1 for j in i+1:n) / (2 * mean(cvals) * n^2)
 
     (; λ = λval, nashList, nashIdxList, scoreSet, score, avgDelayScore, fairScore, giniScore,
-       d, varsize = d + n + 1, solverTime, searchTime = t_search, status, m, n, C, model)
+       d, varsize = d + n + 1, buildTime, solverTime, searchTime = t_search, status, m, n, C, model)
 end

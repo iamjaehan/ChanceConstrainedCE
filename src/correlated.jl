@@ -37,7 +37,12 @@ export SearchCorrLP, SearchCorrReducedLP, BruteNashBasedOptimizerLP
 include("../devel/VertiportGame.jl")
 export VertiportCost, OccupancyVec, NvVector, IsCCPNEProfileVertiport, FindAllCCPNEVertiport,
        CheckExclusiveSetCCPNEVertiport, SearchCorrLPVertiport, SearchCorrReducedLPVertiport,
-       BruteNashBasedOptimizerLPVertiport, HullLPOverCandidateSet
+       BruteNashBasedOptimizerLPVertiport, HullLPOverCandidateSet,
+       HullLPDirect, CertificateBound
+include("../devel/VertiportGameHet.jl")
+export HetYieldWeights, VertiportCostHet, IsCCPNEProfileHet, FindAllCCPNEHet,
+       CheckSetCCPNEHet, SearchCorrLPHet, SearchCorrReducedLPHet,
+       HullLPHetOverX, HullLPHetOverF
 include("../VQSim/actions.jl")
 include("../VQSim/costs.jl")
 include("../VQSim/schedule.jl")
